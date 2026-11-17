@@ -1,0 +1,23 @@
+name: superagent
+description: SuperAgent mobile (Flutter port of the aiagent.app demo website + COD Phase 1 flow).
+publish_to: none
+version: 0.1.0+1
+environment:
+  sdk: ">=3.4.0 <4.0.0"
+dependencies:
+  flutter:
+    sdk: flutter
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+flutter:
+  uses-material-design: true
+  fonts:
+    - family: Satoshi
+      fonts:
+        - asset: assets/fonts/Satoshi.ttf
+    - family: IBMPlexMono
+      fonts:
+        - asset: assets/fonts/ibm-plex-mono-400.ttf
+        - asset: assets/fonts/ibm-plex-mono-700.ttf
+          weight: 700
