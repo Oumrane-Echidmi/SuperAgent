@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { loadSheetDelivery, sheetDeliveryView } from './sheet-delivery.ts';
 import type { Request } from 'express';
 import type { PoolClient } from 'pg';
 import { z } from 'zod';
@@ -108,7 +109,11 @@ export function codRoutes(db: Database) {
     res.json(await scoped(req, async (client, tenantId) => {
       const { page, pageSize } = parseCod(draftPaginationSchema, req.query);
       const rows = await client.query(`SELECT o.id, o.attempt_id AS "attemptId", o.amount_minor AS "amountMinor", o.currency, o.status,
-        o.confirmed_at AS "confirmedAt", s.status AS "sheetSyncStatus" FROM orders o JOIN sheet_sync_requests s ON s.tenant_id = o.tenant_id AND s.order_id = o.id
+        o.confirmed_at AS "confirmedAt", s.status AS "sheetSyncStatus",
+        CASE WHEN d.status='DISPATCHED' AND d.lease_until<=clock_timestamp() THEN 'UNKNOWN'
+          WHEN d.status='PREPARING' AND d.lease_until<=clock_timestamp() THEN 'READY' ELSE coalesce(d.status,'UNBOUND') END AS "sheetDeliveryStatus"
+        FROM orders o JOIN sheet_sync_requests s ON s.tenant_id = o.tenant_id AND s.order_id = o.id
+        LEFT JOIN sheet_deliveries d ON d.tenant_id=o.tenant_id AND d.order_id=o.id
         WHERE o.tenant_id = $1 ORDER BY o.confirmed_at DESC, o.id LIMIT $2 OFFSET $3`, [tenantId, pageSize, (page - 1) * pageSize]);
       const count = await client.query('SELECT count(*)::integer AS total FROM orders WHERE tenant_id = $1', [tenantId]);
       return { data: rows.rows, pagination: { page, pageSize, totalItems: count.rows[0].total, totalPages: Math.ceil(count.rows[0].total / pageSize) } };
@@ -122,7 +127,8 @@ export function codRoutes(db: Database) {
         confirmed_by AS "confirmedBy", confirmed_at AS "confirmedAt" FROM orders WHERE tenant_id = $1 AND id = $2`, [tenantId, id]);
       if (!order.rowCount) throw new HttpError(404, 'NOT_FOUND', 'Order not found.');
       const sync = await client.query('SELECT status, operation_key AS "operationKey", payload FROM sheet_sync_requests WHERE tenant_id = $1 AND order_id = $2', [tenantId, id]);
-      return { ...order.rows[0], sheetSync: sync.rows[0] ?? null };
+      const delivery=await client.query('SELECT 1 FROM sheet_deliveries WHERE tenant_id=$1 AND order_id=$2',[tenantId,id]);
+      return { ...order.rows[0], sheetSync: sync.rowCount?{...sync.rows[0],delivery:delivery.rowCount?sheetDeliveryView(await loadSheetDelivery(client,tenantId,id)):null}:null };
     }));
   });
   return router;

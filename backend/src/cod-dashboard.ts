@@ -26,9 +26,10 @@ export function codDashboardRoutes(db: Database) {
         (count(*) FILTER (WHERE a.status = 'CONFIRMED'))::integer AS confirmed,
         (count(*) FILTER (WHERE a.status = 'DECLINED'))::integer AS declined,
         coalesce(sum(o.amount_minor) FILTER (WHERE a.status = 'CONFIRMED'), 0)::text AS "confirmedOrderValueMinor",
-        (count(*) FILTER (WHERE s.status = 'AWAITING_CONNECTION'))::integer AS "sheetSyncWaiting"
+        (count(*) FILTER (WHERE s.status = 'AWAITING_CONNECTION' AND d.status IS DISTINCT FROM 'SUCCEEDED'))::integer AS "sheetSyncWaiting"
         FROM order_attempts a LEFT JOIN orders o ON o.tenant_id = a.tenant_id AND o.attempt_id = a.id
         LEFT JOIN sheet_sync_requests s ON s.tenant_id = o.tenant_id AND s.order_id = o.id
+        LEFT JOIN sheet_deliveries d ON d.tenant_id=o.tenant_id AND d.order_id=o.id
         WHERE a.tenant_id = $1 AND a.started_at >= ($2::date::timestamp AT TIME ZONE $4)
           AND a.started_at < (($3::date + 1)::timestamp AT TIME ZONE $4)
         GROUP BY (a.started_at AT TIME ZONE $4)::date ORDER BY date`, [tenantId, from, to, timezone]);

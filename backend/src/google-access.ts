@@ -14,10 +14,15 @@ export async function requireGoogleOwner(client: PoolClient, tenantId: string) {
 }
 const changed = () => new HttpError(409, 'GOOGLE_CONNECTION_CHANGED', 'The connection changed. Check its status before trying again.');
 
-/** Serialize refresh/use across processes without holding a transaction during provider HTTP. */
-export async function inspectGoogleConnection<T>(db: Database, config: GoogleConnectionConfig, provider: GoogleSheetsAccess,
+export interface GoogleConnectionUse {
+  accessToken: string;
+  inspection: SpreadsheetInspection;
+  transaction<T>(work: (client: PoolClient, userId: string) => Promise<T>): Promise<T>;
+}
+/** SQL-only callbacks for transaction; provider HTTP must run outside them. */
+export async function useGoogleConnection<T>(db: Database, config: GoogleConnectionConfig, provider: GoogleSheetsAccess,
   bearer: string, tenantId: string, connectionId: string, spreadsheetId: string,
-  save: (client: PoolClient, inspection: SpreadsheetInspection, userId: string) => Promise<T>): Promise<T> {
+  work: (use: GoogleConnectionUse) => Promise<T>): Promise<T> {
   const lease = randomUUID();
   const secret = await db.authenticated(bearer, async client => {
     await requireGoogleOwner(client, tenantId);
@@ -31,7 +36,7 @@ export async function inspectGoogleConnection<T>(db: Database, config: GoogleCon
     if (connection.busy) throw new HttpError(409, 'GOOGLE_BUSY', 'Another check is using this connection. Try again shortly.');
     if (!connection.reset && connection.inspection_count >= 20) throw new HttpError(429, 'RATE_LIMITED', 'Try checking the spreadsheet again in 15 minutes.');
     const refresh = config.vault.open(connection.credential_envelope, { tenantId, connectionId, provider: 'google' });
-    await client.query(`UPDATE google_connections SET access_lease_id=$3,access_lease_until=clock_timestamp()+interval '60 seconds',
+    await client.query(`UPDATE google_connections SET access_lease_id=$3,access_lease_until=clock_timestamp()+interval '120 seconds',
       inspection_count=CASE WHEN $4 THEN 1 ELSE inspection_count+1 END,inspection_window=CASE WHEN $4 THEN clock_timestamp() ELSE inspection_window END WHERE tenant_id=$1 AND id=$2`, [tenantId, connectionId, lease, connection.reset]);
     return refresh;
   });
@@ -64,14 +69,16 @@ export async function inspectGoogleConnection<T>(db: Database, config: GoogleCon
       }
       throw new HttpError(502, 'GOOGLE_CHECK_FAILED', 'Google could not check this spreadsheet. Try again later.');
     }
-    return await db.authenticated(bearer, async (client, userId) => {
-      await requireLease(client);
-      const result = await save(client, inspection, userId);
-      await client.query('UPDATE google_connections SET access_lease_id=NULL,access_lease_until=NULL WHERE tenant_id=$1 AND id=$2 AND access_lease_id=$3', [tenantId, connectionId, lease]);
-      return result;
-    });
+    return await work({ accessToken: access.accessToken, inspection,
+      transaction: callback => db.authenticated(bearer, async (client, userId) => { await requireLease(client); return callback(client, userId); }) });
   } finally {
     // A revoked session/ownership can prevent cleanup; the bounded lease then expires naturally.
     await db.authenticated(bearer, client => client.query('UPDATE google_connections SET access_lease_id=NULL,access_lease_until=NULL WHERE tenant_id=$1 AND id=$2 AND access_lease_id=$3', [tenantId, connectionId, lease])).catch(() => {});
   }
+}
+export async function inspectGoogleConnection<T>(db: Database, config: GoogleConnectionConfig, provider: GoogleSheetsAccess,
+  bearer: string, tenantId: string, connectionId: string, spreadsheetId: string,
+  save: (client: PoolClient, inspection: SpreadsheetInspection, userId: string) => Promise<T>): Promise<T> {
+  return useGoogleConnection(db, config, provider, bearer, tenantId, connectionId, spreadsheetId,
+    use => use.transaction((client,userId) => save(client,use.inspection,userId)));
 }

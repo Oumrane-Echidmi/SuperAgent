@@ -15,8 +15,10 @@ import { googleConnectionRoutes } from './google-connection-routes.ts';
 import type { GoogleConnectionConfig, GoogleOAuth } from './google-oauth.ts';
 import { sheetDestinationRoutes } from './sheet-destination-routes.ts';
 import type { GoogleSheetsAccess } from './google-access.ts';
+import { sheetDeliveryRoutes } from './sheet-delivery-routes.ts';
+import type { GoogleDeliveryProvider } from './sheet-delivery.ts';
 
-export function createApp(db?: Database, options: { builderAiEnabled?: boolean; google?: GoogleConnectionConfig; googleOAuth?: GoogleOAuth; googleSheets?: GoogleSheetsAccess } = {}) {
+export function createApp(db?: Database, options: { builderAiEnabled?: boolean; google?: GoogleConnectionConfig; googleOAuth?: GoogleOAuth; googleSheets?: GoogleSheetsAccess; sheetDeliveryEnabled?: boolean; googleDelivery?: GoogleDeliveryProvider } = {}) {
   const app = express();
   app.disable('x-powered-by');
   app.use((_req, res, next) => {
@@ -36,6 +38,7 @@ export function createApp(db?: Database, options: { builderAiEnabled?: boolean; 
   if (db) app.use('/v1', codDashboardRoutes(db));
   if (db) app.use('/v1', googleConnectionRoutes(db, options.google, options.googleOAuth));
   if (db) app.use('/v1', sheetDestinationRoutes(db, options.google, options.googleSheets));
+  if (db) app.use('/v1', sheetDeliveryRoutes(db, options.sheetDeliveryEnabled??false, options.google, options.googleDelivery));
   app.post('/v1/graph-validations', (req, res) => {
     const report = validateGraph(req.body);
     if (!report.valid) {

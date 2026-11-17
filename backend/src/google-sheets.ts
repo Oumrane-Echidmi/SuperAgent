@@ -93,6 +93,22 @@ export class GoogleSheetsProvider {
       throw new GoogleFailure('INVALID_RESPONSE');
     }
   }
+  async readRows(accessToken: string, destination: Destination, rowCount: number, signal?: AbortSignal): Promise<(string | number | boolean)[][]> {
+    token.parse(accessToken); const target = destinationSchema.parse(destination); z.number().int().min(1).max(1000).parse(rowCount);
+    const tab = `'${target.tab.replaceAll("'", "''")}'`;
+    const url = new URL(`https://sheets.googleapis.com/v4/spreadsheets/${target.spreadsheetId}/values/${encodeURIComponent(`${tab}!A1:L${rowCount}`)}`);
+    url.search = new URLSearchParams({ majorDimension: 'ROWS', valueRenderOption: 'FORMULA' }).toString();
+    const abort = AbortSignal.any([AbortSignal.timeout(15000), ...(signal ? [signal] : [])]);
+    try {
+      abort.throwIfAborted();
+      const response = await this.request(url, { method: 'GET', redirect: 'error', signal: abort, headers: { Authorization: `Bearer ${accessToken}` } });
+      if (!response.ok) { await response.body?.cancel(); throw new GoogleFailure('REQUEST_REJECTED'); }
+      const result = z.object({ range: z.string().max(500), majorDimension: z.literal('ROWS'),
+        values: z.array(z.array(z.union([z.string().max(4000), z.number().finite(), z.boolean()])).max(12)).max(rowCount).optional() }).safeParse(await readGoogleResponse(response));
+      if (!result.success || ![`${tab}!A1:L${rowCount}`, `${target.tab}!A1:L${rowCount}`].includes(result.data.range)) throw new GoogleFailure('INVALID_RESPONSE');
+      return result.data.values ?? [];
+    } catch (error) { if (error instanceof GoogleFailure) throw error; throw new GoogleFailure('INVALID_RESPONSE'); }
+  }
   async append(accessToken: string, destination: Destination, row: string[], signal?: AbortSignal) {
     token.parse(accessToken); const target = destinationSchema.parse(destination);
     const values = z.array(z.string().max(4000)).min(1).max(26).parse(row);
