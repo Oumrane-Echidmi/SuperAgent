@@ -45,7 +45,7 @@ class _AgentsScreenState extends State<AgentsScreen> {
       body: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
-          child: Text('4 agents Â· Agents that turn approved work into updates, comments, and status changes.',
+          child: Text('4 agents · Agents that turn approved work into updates, comments, and status changes.',
               style: SA.t(12, c: SA.muted)),
         ),
         TabStrip(const ['Agents', 'Squads', 'Skills', 'Connections'], onChanged: (i) => setState(() => tab = i)),

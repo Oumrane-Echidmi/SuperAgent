@@ -3,3 +3,5 @@ build/
 .idea/
 .git/
 android/.gradle/
+docs/
+Dockerfile

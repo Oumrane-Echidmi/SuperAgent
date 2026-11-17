@@ -18,23 +18,23 @@ class _Group {
 
 const _groups = [
   _Group('Today', [
-    _Mail('KH', 'Karen Holt', '8 min ago', 'Status on PO-48291 â€” gasket kit for Line 3', flagged: true, unread: true),
+    _Mail('KH', 'Karen Holt', '8 min ago', 'Status on PO-48291 — gasket kit for Line 3', flagged: true, unread: true),
     _Mail('PR', 'Priya Raman', '14 min ago', 'Re: SuperAgent pricing for 40 seats', flagged: true, unread: true),
-    _Mail('MS', 'Mike Sanders', '22 min ago', 'Wrong fasteners on PO-39017 â€” need M12, received M10', flagged: true, unread: true),
-    _Mail('TV', 'Tom Vasquez', '38 min ago', 'Mobile onboarding fix â€” what is the timeline?'),
-    _Mail('GI', 'GitHub', '52 min ago', 'Review requested on PR #482 â€” Fix mobile onboarding drop-off', unread: true),
+    _Mail('MS', 'Mike Sanders', '22 min ago', 'Wrong fasteners on PO-39017 — need M12, received M10', flagged: true, unread: true),
+    _Mail('TV', 'Tom Vasquez', '38 min ago', 'Mobile onboarding fix — what is the timeline?'),
+    _Mail('GI', 'GitHub', '52 min ago', 'Review requested on PR #482 — Fix mobile onboarding drop-off', unread: true),
     _Mail('SP', 'Susan Park', '1 hour ago', 'Duplicate freight line on INV-2024-0892'),
     _Mail('E', 'Inbox Concierge finished RMA labels for Harbor Forge', '2 hours ago',
         'Generated return labels for three PS-118 sensors and queued the credit memo draft for finance review.',
         agent: true),
     _Mail('HO', 'Hannah Okafor', '3 hours ago', 'Security questionnaire before the pilot', flagged: true),
-    _Mail('JO', 'James Okonkwo', '4 hours ago', 'RMA request â€” batch of PS-118 pressure sensors', flagged: true, unread: true),
+    _Mail('JO', 'James Okonkwo', '4 hours ago', 'RMA request — batch of PS-118 pressure sensors', flagged: true, unread: true),
     _Mail('P', 'Growth Analyst proposes a table: Mobile trial cohorts', '5 hours ago',
         'Group the last 30 days of mobile trials by the step they stopped on, so the drop-off is countable.',
         agent: true),
     _Mail('MV', 'Marco Vidal', '7 hours ago', 'Re: Q3 growth review deck'),
     _Mail('CM', 'Carlos Mendez', '9 hours ago', 'Need PN-4420 at the Spokane job site by 6am'),
-    _Mail('JL', 'Jordan Lee', '11 hours ago', 'Re: Warehouse pick accuracy â€” week 36 numbers'),
+    _Mail('JL', 'Jordan Lee', '11 hours ago', 'Re: Warehouse pick accuracy — week 36 numbers'),
     _Mail('E', 'Backorder alert workflow blocked on Pacific Alloys SKU map', '18 hours ago',
         'The agent could not match Pacific\'s rod stock code to an internal SKU. Needs a manual mapping before alerts can resume.',
         agent: true),
@@ -44,7 +44,7 @@ const _groups = [
   ]),
   _Group('Yesterday', [
     _Mail('E', 'Portal inventory sync failed on 14 SKUs', '1 day ago',
-        'The nightly WMS â†’ ordering portal job stopped on a unit-of-measure mismatch for fastener SKUs. Buyers still see yesterday\'s quantities.',
+        'The nightly WMS → ordering portal job stopped on a unit-of-measure mismatch for fastener SKUs. Buyers still see yesterday\'s quantities.',
         agent: true),
     _Mail('P', 'Growth Analyst proposes a workflow: Backorder customer alerts', '1 day ago',
         'Email buyers when a stocked SKU drops below reorder point and the next PO is more than five days out.',
@@ -52,8 +52,8 @@ const _groups = [
   ]),
   _Group('This week', [
     _Mail('NK', 'Nina Kowalski', '2 days ago', 'Portal login loops after password reset'),
-    _Mail('RC', 'Raymond Cho', '3 days ago', 'Bulk quote â€” 500 stainless hydraulic fittings for Q4 shutdown'),
-    _Mail('ME', 'Morgan Ellis', '4 days ago', 'Lead time slip â€” 304 stainless rod stock for PO-47880'),
+    _Mail('RC', 'Raymond Cho', '3 days ago', 'Bulk quote — 500 stainless hydraulic fittings for Q4 shutdown'),
+    _Mail('ME', 'Morgan Ellis', '4 days ago', 'Lead time slip — 304 stainless rod stock for PO-47880'),
   ]),
 ];
 
@@ -144,7 +144,7 @@ class _InboxScreenState extends State<InboxScreen> {
                   const Icon(Icons.expand_more, size: 16, color: SA.muted),
                 ]),
                 const SizedBox(height: 4),
-                Text('Headcount 74% Â· Pricing model 84% Â· Personas 68%', style: SA.t(13, c: SA.muted, h: 1.4)),
+                Text('Headcount 74% · Pricing model 84% · Personas 68%', style: SA.t(13, c: SA.muted, h: 1.4)),
               ]),
             ),
           ]),
@@ -282,7 +282,7 @@ class _MailDetail extends StatelessWidget {
         Text(mail.agent ? mail.from : mail.subject, style: SA.t(14, w: FontWeight.w700)),
         const SizedBox(height: 14),
         if (tom) ...[
-          Text('Following up on this â€” about half our team signs up on a phone, and they keep falling out at the connect-data step.',
+          Text('Following up on this — about half our team signs up on a phone, and they keep falling out at the connect-data step.',
               style: SA.t(14, h: 1.5)),
           const SizedBox(height: 14),
           Text('Do you have a date for the fix? We are happy to test a beta build against our own workspace if that helps you ship it faster.',
@@ -300,7 +300,7 @@ class _MailDetail extends StatelessWidget {
               const SizedBox(height: 12),
               Row(children: [
                 Expanded(
-                    child: Text('Re: Mobile onboarding fix â€” what is the timeline?',
+                    child: Text('Re: Mobile onboarding fix — what is the timeline?',
                         style: SA.t(12, c: SA.muted))),
                 Text('Edit subject', style: SA.t(12, c: SA.muted)),
               ]),
@@ -311,7 +311,7 @@ class _MailDetail extends StatelessWidget {
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(color: SA.bg, borderRadius: BorderRadius.circular(10)),
                 child: Text(
-                    'Hi Tom,\n\nThanks for the detail â€” it matched what the funnel was showing, so we could act on it quickly.\n\nThe connect-data step on mobile is fixed in AI-251 and is in review now. It ships with Thursday\'s release, and the change also restores form recovery, so a half-finished signup survives a page reload.\n\nI would like to take you up on the beta build. Reply with the two accounts that got stuck and I will put them on the build tomorrow morning.\n\nNim',
+                    'Hi Tom,\n\nThanks for the detail — it matched what the funnel was showing, so we could act on it quickly.\n\nThe connect-data step on mobile is fixed in AI-251 and is in review now. It ships with Thursday\'s release, and the change also restores form recovery, so a half-finished signup survives a page reload.\n\nI would like to take you up on the beta build. Reply with the two accounts that got stuck and I will put them on the build tomorrow morning.\n\nNim',
                     style: SA.t(13.5, h: 1.45)),
               ),
               const SizedBox(height: 10),

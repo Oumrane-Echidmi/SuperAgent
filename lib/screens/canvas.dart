@@ -21,11 +21,11 @@ class _Node {
 const _nodes = [
   _Node('note', 'note', Rect.fromLTWH(16, 55, 170, 130),
       text: 'Two image branches and a motion branch off the same frame. Each keeps its own prompt, so a rewrite re-runs that branch alone.'),
-  _Node('img', 'image', Rect.fromLTWH(14, 383, 256, 190), text: '720Ã—405'),
+  _Node('img', 'image', Rect.fromLTWH(14, 383, 256, 190), text: '720×405'),
   _Node('p1', 'prompt', Rect.fromLTWH(345, 45, 224, 122),
       text: 'Three variations that hold the palette and the mood, but change the framing: wide, centred, and a tight crop.'),
   _Node('p2', 'prompt', Rect.fromLTWH(345, 335, 224, 102),
-      text: 'A warmer pass on the same frame â€” softer light, lower contrast, more room around the edges.'),
+      text: 'A warmer pass on the same frame — softer light, lower contrast, more room around the edges.'),
   _Node('p3', 'prompt', Rect.fromLTWH(345, 624, 224, 122),
       text: 'A slow three-second push-in on the same frame, gentle parallax, no camera shake. A clean loop for a page hero.'),
   _Node('g1', 'image-gen', Rect.fromLTWH(746, 13, 256, 262),

@@ -34,11 +34,11 @@ const _workLog3 = [
 const _options = [
   'Defer verification until after first run',
   'Add visible retry with progress state',
-  'Both â€” retry now, defer verification next sprint',
+  'Both — retry now, defer verification next sprint',
   'Something else',
 ];
 const _table = [
-  ['Fix', 'Connect-data pts', 'Trial â†’ paid pts', 'Eng days'],
+  ['Fix', 'Connect-data pts', 'Trial → paid pts', 'Eng days'],
   ['Defer verification', '6', '1.1', '2'],
   ['Visible retry + progress', '3', '0.5', '1'],
   ['Both, staged', '6', '1.1', '3'],
@@ -117,7 +117,7 @@ class _ChatThread extends StatelessWidget {
           title: Row(children: [
             const Icon(Icons.psychology_outlined, size: 14, color: SA.muted),
             const SizedBox(width: 6),
-            Text('Work log Â· ${steps.length} steps', style: SA.t(12.5, c: SA.muted)),
+            Text('Work log · ${steps.length} steps', style: SA.t(12.5, c: SA.muted)),
           ]),
           children: [
             for (final s in steps)
@@ -142,7 +142,7 @@ class _ChatThread extends StatelessWidget {
   Widget _bullet(Widget rest) => Padding(
         padding: const EdgeInsets.only(bottom: 8, left: 6),
         child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('â€¢  ', style: SA.t(14, c: SA.muted)),
+          Text('•  ', style: SA.t(14, c: SA.muted)),
           Expanded(child: rest),
         ]),
       );
@@ -177,42 +177,42 @@ class _ChatThread extends StatelessWidget {
             const SizedBox(height: 8),
             _bullet(Text.rich(TextSpan(children: [
               _b('PostHog'),
-              _n(' â€” '),
+              _n(' — '),
               _code(' connect_data '),
               _n(" abandons rose 9 points after Tuesday's deploy. Every other step held, and web is flat, so this is mobile only."),
             ]))),
             _bullet(Text.rich(TextSpan(children: [
               _b('Brand Profile'),
-              _n(' â€” activation depends on the first integration succeeding, which makes this one screen the whole funnel '),
+              _n(' — activation depends on the first integration succeeding, which makes this one screen the whole funnel '),
               _code(' K1 '),
               _n('.'),
             ]))),
             _bullet(Text.rich(TextSpan(children: [
               _b('Funnel events'),
-              _n(' â€” 214 mobile trials in the window, 38 of them stall there '),
+              _n(' — 214 mobile trials in the window, 38 of them stall there '),
               _code(' K2 '),
               _n('.'),
             ]))),
             _bullet(Text.rich(TextSpan(children: [
               _b('Stripe'),
-              _n(' â€” paid conversion is 18.3% against 18.1% the period before, so pricing is not the cause.'),
+              _n(' — paid conversion is 18.3% against 18.1% the period before, so pricing is not the cause.'),
             ]))),
             Text.rich(TextSpan(children: [
               _n('I opened '),
-              _b('AI-251 â€” Fix mobile onboarding drop-off'),
+              _b('AI-251 — Fix mobile onboarding drop-off'),
               _n(' and moved it into progress: patch the connect-data step, restore mobile form recovery, and verify activation lift.'),
             ])),
             const SizedBox(height: 10),
             Row(children: [_cite('K1'), _cite('K2')]),
             _user('Who picks it up?'),
             Text(
-                'It stays on my queue for the diagnosis, and I tagged Marco Vidal for review â€” he owns onboarding this cycle. I will re-run the funnel 24 hours after the fix ships and post the activation delta in this thread.',
+                'It stays on my queue for the diagnosis, and I tagged Marco Vidal for review — he owns onboarding this cycle. I will re-run the funnel 24 hours after the fix ships and post the activation delta in this thread.',
                 style: SA.t(13, h: 1.5)),
             _user("What's the fastest way to close that gap?"),
             Row(children: [
               const Icon(Icons.radio_button_unchecked, size: 12, color: SA.muted),
               const SizedBox(width: 8),
-              Expanded(child: Text('Close the connect-data gap Â· 2 of 3 steps done', style: SA.t(12, c: SA.muted))),
+              Expanded(child: Text('Close the connect-data gap · 2 of 3 steps done', style: SA.t(12, c: SA.muted))),
             ]),
             _log(_workLog2),
             SACard(
@@ -270,7 +270,7 @@ class _ChatThread extends StatelessWidget {
             ),
             const SizedBox(height: 12),
             Text.rich(TextSpan(children: [
-              _n('Both patterns hold up outside our own funnel too â€” deferring the identity check until after the first success recovers more, a visible retry on the same gate recovers less but ships in a day '),
+              _n('Both patterns hold up outside our own funnel too — deferring the identity check until after the first success recovers more, a visible retry on the same gate recovers less but ships in a day '),
               _code(' W1 '),
               _n('.\n\nI costed both against the 214 mobile trials in the window. Pick one above and I will fold it into AI-251 today.'),
             ])),
@@ -280,7 +280,7 @@ class _ChatThread extends StatelessWidget {
               padding: const EdgeInsets.all(12),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text('Connect-data fix comparison', style: SA.t(13, w: FontWeight.w700)),
-                Text('3 records Â· Modeled against the last 21 days of mobile trials', style: SA.t(11, c: SA.muted)),
+                Text('3 records · Modeled against the last 21 days of mobile trials', style: SA.t(11, c: SA.muted)),
                 const SizedBox(height: 10),
                 SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
@@ -305,7 +305,7 @@ class _ChatThread extends StatelessWidget {
             ),
             const SizedBox(height: 12),
             Text(
-                'Deferring verification alone recovers the most for the least engineering time â€” 2 days against an estimated 1.1-point trial-to-paid lift. Staging both gets the same recovery on a slower rollout, worth it only if you also want the retry safety net. I will start on your pick from AI-251 the moment you choose.',
+                'Deferring verification alone recovers the most for the least engineering time — 2 days against an estimated 1.1-point trial-to-paid lift. Staging both gets the same recovery on a slower rollout, worth it only if you also want the retry safety net. I will start on your pick from AI-251 the moment you choose.',
                 style: SA.t(14, h: 1.5)),
             const SizedBox(height: 16),
           ]),

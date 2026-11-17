@@ -9,15 +9,15 @@ class _Src {
 
 const _sources = [
   _Src('Brand Profile', 'Positioning + ICP', 'manual', 'ready', '4h ago'),
-  _Src('ICP â€” mid-market RevOps', 'Segments, trigger events, disqualifiers', 'manual', 'ready', '2d ago'),
-  _Src('Q3 discovery â€” call notes', 'Three customer calls, one repeated ask', 'manual', 'ready', '51m ago'),
-  _Src('Teardown â€” Meridian', 'Where they win, where we win, objection handling', 'manual', 'ready', '5d ago'),
-  _Src('Activation â€” metric definitions', 'The definitions every report must use', 'manual', 'ready', '19h ago'),
+  _Src('ICP — mid-market RevOps', 'Segments, trigger events, disqualifiers', 'manual', 'ready', '2d ago'),
+  _Src('Q3 discovery — call notes', 'Three customer calls, one repeated ask', 'manual', 'ready', '51m ago'),
+  _Src('Teardown — Meridian', 'Where they win, where we win, objection handling', 'manual', 'ready', '5d ago'),
+  _Src('Activation — metric definitions', 'The definitions every report must use', 'manual', 'ready', '19h ago'),
   _Src('Pricing and packaging v3', 'Plans, what changed from v2, discount policy', 'manual', 'ready', '9d ago'),
   _Src('docs.superagent.com', '84 public docs pages, refreshed nightly', 'website', 'ready', '9h ago'),
   _Src('Security and DPA one-pager.pdf', 'SOC 2, residency, sub-processors, retention', 'file', 'ready', '17d ago'),
-  _Src('Support escalations â€” Gmail', 'Threads tagged escalation, rolling 30 days', 'connection', 'indexing', '4m ago'),
-  _Src('Q4 content calendar â€” campaign brief', 'Which Content calendar rows double as sales follow-up', 'manual', 'ready', '7h ago'),
+  _Src('Support escalations — Gmail', 'Threads tagged escalation, rolling 30 days', 'connection', 'indexing', '4m ago'),
+  _Src('Q4 content calendar — campaign brief', 'Which Content calendar rows double as sales follow-up', 'manual', 'ready', '7h ago'),
 ];
 
 const _csvs = [('Supplier', '12 rows', '', '4d ago')];

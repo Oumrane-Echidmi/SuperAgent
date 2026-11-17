@@ -48,9 +48,9 @@ const _demoWorkflows = [
       nodes: '7 nodes', schedule: 'Webhook trigger', last: '42m ago'),
   _Wf('Investor update draft', "Pulls the month's revenue and activation numbers into a draft update.", 'paused', SA.pink,
       nodes: '7 nodes',
-      schedule: 'Monthly Â· 1st at 6:00 AM UTC',
+      schedule: 'Monthly · 1st at 6:00 AM UTC',
       last: '3d ago',
-      error: 'Paused automatically after 3 failed runs â€” the revenue step timed out.'),
+      error: 'Paused automatically after 3 failed runs — the revenue step timed out.'),
 ];
 
 class WorkflowsScreen extends StatefulWidget {
@@ -222,7 +222,7 @@ class _WorkflowsScreenState extends State<WorkflowsScreen> {
         body: ListView(padding: const EdgeInsets.only(bottom: 24), children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 6),
-            child: Text('9 Â· Reusable automations your agents can run on schedule or on demand. (demo data)', style: SA.t(12, c: SA.muted)),
+            child: Text('9 · Reusable automations your agents can run on schedule or on demand. (demo data)', style: SA.t(12, c: SA.muted)),
           ),
           TabStrip(const ['Workflows', 'Runs', 'Upcoming', 'Templates'], onChanged: (i) => setState(() => tab = i)),
           if (tab == 0)

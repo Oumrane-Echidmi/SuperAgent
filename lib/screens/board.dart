@@ -40,7 +40,7 @@ const _cols = <_Col>[
     _Ticket('AI-224', 'Add usage-based upgrade nudges in-app', ['Billing', 'Experiment'], '?', ''),
   ]),
   _Col('To do', 17, SA.amber, Icons.circle_outlined, [
-    _Ticket('AI-271', 'Issue RMA for PS-118 sensors â€” Harbor Forge lot HF-4417', ['Customer'], 'Inbox Concierge', 'Nov 12', agent: true),
+    _Ticket('AI-271', 'Issue RMA for PS-118 sensors — Harbor Forge lot HF-4417', ['Customer'], 'Inbox Concierge', 'Nov 12', agent: true),
     _Ticket('AI-269', "Audit our ERP export gap after Boltline's NetSuite integration launch", ['Customer'], 'Jordan Lee', 'Nov 16'),
     _Ticket('AI-268', 'Follow up with Ironclad Rigging Co on the per-seat pricing objection', ['Customer'], 'Marco Vidal', 'Nov 15'),
     _Ticket('AI-267', 'Move Granite Peak Mining Supply to a net-45 proposal', ['Customer'], 'Marco Vidal', 'Nov 14'),
@@ -50,17 +50,17 @@ const _cols = <_Col>[
   _Col('In progress', 13, SA.amber, Icons.timelapse, [
     _Ticket('AI-270', 'Expedite correct M12x40 bolts for Atlas Plant (PO-39017)', ['Customer'], 'Jordan Lee', 'Nov 11'),
     _Ticket('AI-255', 'Add supplier lead-time field to portal product API', ['Analytics'], 'Marco Vidal', 'Nov 16'),
-    _Ticket('AI-254', 'Investigate partial refund for duplicate shipment', ['Billing', 'Customer'], 'Revenue Watch', 'Nov 11 â€” Nov 13',
+    _Ticket('AI-254', 'Investigate partial refund for duplicate shipment', ['Billing', 'Customer'], 'Revenue Watch', 'Nov 11 — Nov 13',
         progress: '2/3', agent: true),
     _Ticket('AI-253', 'Approve PO-7721 for titanium fasteners (\$18.4k)', [], 'Nim', 'Nov 11', progress: '0/2'),
-    _Ticket('AI-251', 'Fix mobile onboarding drop-off', ['Activation', 'Mobile'], 'Growth Analyst', 'Nov 10 â€” Nov 13',
+    _Ticket('AI-251', 'Fix mobile onboarding drop-off', ['Activation', 'Mobile'], 'Growth Analyst', 'Nov 10 — Nov 13',
         progress: '2/5', agent: true, flag: 'Working'),
   ]),
   _Col('In review', 9, SA.green, Icons.check_circle_outline, [
     _Ticket('AI-260', 'Contract redlines from Ridgefield Equipment', ['Customer', 'Billing'], 'Marco Vidal', 'Nov 14'),
     _Ticket('AI-259', 'Update KB article for portal bulk CSV upload', ['Customer'], 'Jordan Lee', ''),
     _Ticket('AI-258', 'September supplier invoice accruals', ['Billing'], 'Revenue Watch', 'Nov 12', agent: true),
-    _Ticket('AI-257', 'Review case study draft â€” Lakeside valve retrofit', ['Lifecycle', 'Customer'], 'Marco Vidal', 'Nov 13'),
+    _Ticket('AI-257', 'Review case study draft — Lakeside valve retrofit', ['Lifecycle', 'Customer'], 'Marco Vidal', 'Nov 13'),
     _Ticket('AI-256', 'Confirm Acme Bearings lead time slipped to six weeks', ['Customer'], '', ''),
   ]),
   _Col('Done', 0, SA.blue, Icons.check_circle, []),
@@ -83,7 +83,7 @@ class BoardScreen extends StatelessWidget {
       body: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
-          child: Text('68 tickets Â· Track and manage your team\'s work.', style: SA.t(12, c: SA.muted)),
+          child: Text('68 tickets · Track and manage your team\'s work.', style: SA.t(12, c: SA.muted)),
         ),
         const TabStrip(['Work', 'Projects']),
         const TabStrip(['All', 'Members', 'Agents', 'My work', 'Needs you', 'Active', 'Archived (3)']),
@@ -100,7 +100,7 @@ class BoardScreen extends StatelessWidget {
                   Text('1 starter suggestion from your signup', style: SA.t(13, c: SA.blue, w: FontWeight.w500)),
                   const SizedBox(height: 4),
                   Text(
-                      'AI Agent drafted this from your website so the board was not empty. It is a suggestion, not your own work â€” keep what fits, or clear the board.',
+                      'AI Agent drafted this from your website so the board was not empty. It is a suggestion, not your own work — keep what fits, or clear the board.',
                       style: SA.t(11.5, c: SA.blue, h: 1.35)),
                 ]),
               ),

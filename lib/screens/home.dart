@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../theme.dart';
 
-/// Home â€” port of index.html (greeting, composer, suggested steps, Widgets: Todo, Needs to know).
+/// Home — port of index.html (greeting, composer, suggested steps, Widgets: Todo, Needs to know).
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
   @override
@@ -16,7 +16,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   static const steps = ['What in my inbox needs attention?', 'Draft replies to anything waiting', 'Which features are people using?'];
   static const needs = [
-    ('KH', 'Karen Holt', 'Status on PO-48291 â€” gasket kit for Line 3', '8 min ago', SA.red),
+    ('KH', 'Karen Holt', 'Status on PO-48291 — gasket kit for Line 3', '8 min ago', SA.red),
     ('PR', 'Priya Raman', 'Re: SuperAgent pricing for 40 seats', '14 min ago', SA.blue),
   ];
 
@@ -41,7 +41,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 maxLines: 4,
                 style: SA.t(14),
                 decoration: InputDecoration(
-                    border: InputBorder.none, isDense: true, hintText: 'Message Assistantâ€¦', hintStyle: SA.t(14, c: SA.muted)),
+                    border: InputBorder.none, isDense: true, hintText: 'Message Assistant…', hintStyle: SA.t(14, c: SA.muted)),
               ),
               const SizedBox(height: 18),
               Row(children: [
@@ -99,7 +99,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   style: SA.t(13),
                   onSubmitted: _add,
                   decoration: InputDecoration(
-                      border: InputBorder.none, hintText: 'Capture a todoâ€¦', hintStyle: SA.t(13, c: SA.muted), isCollapsed: false),
+                      border: InputBorder.none, hintText: 'Capture a todo…', hintStyle: SA.t(13, c: SA.muted), isCollapsed: false),
                 ),
               ),
             ),
