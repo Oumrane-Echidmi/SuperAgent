@@ -1,12 +1,15 @@
 {
   "name": "superagent",
   "private": true,
+  "packageManager": "npm@11.20.0",
   "workspaces": ["backend"],
   "scripts": {
     "dev": "npm run dev --workspace backend",
     "build": "npm run build --workspace backend",
     "typecheck": "npm run typecheck --workspace backend",
-    "test": "npm run test --workspace backend"
+    "test": "npm run test --workspace backend",
+    "test:integration": "npm run test:integration --workspace backend",
+    "db:migrate": "npm run db:migrate --workspace backend"
   },
   "engines": { "node": ">=24" }
 }

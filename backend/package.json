@@ -4,19 +4,25 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "node --watch --experimental-strip-types src/server.ts",
+    "dev": "node --env-file-if-exists=.env --watch --experimental-strip-types src/server.ts",
     "build": "tsc",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --project tsconfig.check.json",
     "test": "node --experimental-strip-types --test tests/*.test.ts",
-    "start": "node dist/server.js"
+    "start": "node --env-file-if-exists=.env dist/server.js",
+    "db:migrate": "node --env-file=.env --experimental-strip-types scripts/migrate.ts",
+    "db:cleanup": "node --env-file=.env --experimental-strip-types scripts/cleanup.ts",
+    "db:setup:test": "node --env-file=.env.test --experimental-strip-types scripts/create-test-db.ts && node --env-file=.env.test --experimental-strip-types scripts/migrate.ts",
+    "test:integration": "node --env-file=.env.test --experimental-strip-types --test tests/database.integration.ts"
   },
   "dependencies": {
     "express": "^5.3.0",
+    "pg": "^8.23.1",
     "zod": "^4.6.7"
   },
   "devDependencies": {
     "@types/express": "^5.0.6",
     "@types/node": "^24.19.2",
+    "@types/pg": "^8.23.1",
     "typescript": "^5.9.3"
   }
 }
