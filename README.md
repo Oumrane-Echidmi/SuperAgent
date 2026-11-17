@@ -120,7 +120,7 @@ This is the backend catalog foundation for local capabilities. COD scenarios, mo
 
 ### Tenant Builder draft review
 
-Run `npm run db:migrate` after pulling to add the Builder tables; update the test database with `npm run db:setup:test --workspace backend`. The API persists tenant setup drafts and revision-specific review evidence. Clients explicitly select an immutable catalog release, optionally using the phrase matching API below. Setup chat, model-based matching and prompt generation remain unimplemented. Stored `name`, `goal` and `language` describe setup intent; permitted `content.parameters` can change only admin-declared literal settings.
+Run `npm run db:migrate` after pulling to add the Builder tables; update the test database with `npm run db:setup:test --workspace backend`. The API persists tenant setup drafts and revision-specific review evidence. Clients explicitly select an immutable catalog release, optionally using phrase matching or the opt-in AI chat below. Business Agent prompt generation remains unimplemented. Stored `name`, `goal` and `language` describe setup intent; permitted `content.parameters` can change only admin-declared literal settings.
 
 All endpoints below require a live bearer session and tenant membership. Staff can read; owners can create, edit, simulate and approve. Platform-admin catalog access does not bypass tenant membership. Another shop receives `404`. Draft IDs are scoped by tenant, so independent shops may safely use the same client UUID.
 
@@ -164,10 +164,37 @@ Goals are trimmed, 2–4000 characters, and language must be `darija` or `fr`. R
 
 Matching goals and results are retained for 30 days plus cleanup lag. Schedule `npm run db:cleanup:builder --workspace backend` daily using separate maintenance credentials; it deletes only requests older than 30 days. This also bounds request-ID replay retention; deleted requests return `404` and a later POST is treated as a new request. The runtime cannot mutate or delete these records. Goals can include business/personal information, so submit only setup facts needed for scenario matching. Unsupported goals are shared with platform admins for catalog planning; no third-party service receives them.
 
+### Scoped AI Builder chat
+
+AI chat is opt-in and disabled by default. No live model is called by the test suite. To enable local inference, set `BUILDER_AI_ENABLED=true`, an explicit `BUILDER_AI_MODEL` supporting Responses structured outputs, and `OPENAI_API_KEY` in the worker environment. Set a separate random `BUILDER_WORKER_DATABASE_PASSWORD` (at least 24 characters) and `BUILDER_WORKER_DATABASE_URL=postgresql://superagent_builder_worker:<password>@127.0.0.1:5433/superagent`, then rerun `npm run db:migrate`. The migration initially creates the dedicated worker role with NOLOGIN and enables login when a password is supplied. Use the same worker-role password across databases on this local PostgreSQL instance. Update `backend/.env.test` from its example and rerun test setup for the integration suite.
+
+Run `npm run dev` for the API and `npm run worker:builder` in a separate terminal. Production builds include `backend/dist/builder-worker.js`. The API only needs the enable flag and its existing runtime database credentials. The worker needs the provider/model configuration and its separate database credentials; it cannot read password/session tables, business profiles, connector credentials, draft records or approvals. Keep privileged migration/retention credentials outside both deployed processes. The worker polls queued turns; inference happens outside HTTP requests and database transactions.
+
+| Endpoint | Request / result |
+|---|---|
+| `POST /v1/tenants/:tenantId/builder/sessions` | [Session example](backend/examples/builder-chat-session.json): `{ id, language, consentToOpenAI: true }`; `201` or `200` on replay |
+| `GET /v1/tenants/:tenantId/builder/sessions` | Paginated session summaries |
+| `GET /v1/tenants/:tenantId/builder/sessions/:id` | Current revision and ordered turns, including status, validated result, safe error code and available token usage |
+| `POST /v1/tenants/:tenantId/builder/sessions/:id/messages` | [Message example](backend/examples/builder-chat-message.json): `{ id, expectedRevision, text }`; `202` for a queued turn, `200` for an identical retry |
+| `GET /v1/admin/builder-chat-gaps` | Paginated unsupported chat goals and gaps for platform-admin catalog review |
+
+Owners can create sessions and submit messages; members can read their tenant's sessions. Another tenant receives `404`, and staff writes receive `403`. Consent to OpenAI processing is explicitly required when creating a session. Reusing a session UUID with another language returns `409 SESSION_ID_REUSED`. Message IDs bind the exact trimmed text and expected revision; changed input returns `409 MESSAGE_ID_REUSED`. A completed or pending duplicate returns the existing turn without another reservation or inference. New messages while a turn is pending return `409 TURN_PENDING`; stale revisions return `409 STALE_REVISION`. Disabled inference returns `503 BUILDER_AI_DISABLED` for new turns while stored history/retries remain readable.
+
+There are at most 20 accepted turns per session and 20 accepted turns per tenant per UTC day. Message text is 1–2000 characters. Request reservations and queue inserts commit together; concurrent requests cannot overrun the daily cap. Failed, cancelled, expired or uncertain attempts retain their reservation. Quota exhaustion returns `429 BUILDER_LIMIT`, and a full session returns `429 SESSION_LIMIT`. These limits count requests, not currency. Actual input/output/total tokens and provider response/model identifiers are saved when available; billing totals and price estimates are not implemented.
+
+Turns move through QUEUED, RUNNING and SUCCEEDED/FAILED. Workers claim with SKIP LOCKED and a 60-second lease. Ownership is rechecked before inference and before saving a result. Late results cannot overwrite a failed/expired lease. Expired running work becomes `MODEL_OUTCOME_UNKNOWN` and is never automatically retried. Queued work from a prior UTC day expires before inference. A new explicit message with the current session revision is required to try again. A worker crash can leave usage unavailable; its request reservation remains consumed. Prompt version `builder-1.0.0`, catalog snapshot, actor and provider metadata preserve provenance.
+
+The provider receives the latest message, up to five previous successful turns from the same tenant/session and summaries of at most 20 latest released scenarios. No graph, fixture, business profile, connection or credential is included. Serialized context is limited to 32kb, response bodies to 128kb and the request to 1800 output tokens with a 20-second timeout. Oversized catalogs/context fail explicitly. The fixed HTTPS endpoint disables redirects, tools and automatic retries, and sends `store:false`. Refusal, incomplete responses, unknown tool outputs, malformed JSON and unregistered pins/settings never produce successful proposals. HTTP authorization/rate/configuration failures have safe provider error codes; provider diagnostics and secrets are not returned.
+
+Validated results contain `reply`, `spec` (name, goal, language, requested fields and constraints), an optional exact scenario `selection`, declared `parameters`, `questions`, `gaps`, a derived `status` and optional `draftSuggestion`. Status is READY, NEEDS_DETAILS or UNSUPPORTED. Missing facts produce questions; unsupported tools produce gaps. READY is a suggestion for review, not proof of semantic fit or an activated workflow. To adopt it, the owner explicitly POSTs its scenario pin/content with a new draft UUID through the existing draft API, then simulates and approves that revision. Chat never edits drafts, approves, publishes, executes tools or generates executable code. Its reply and extracted facts remain untrusted model text.
+
+Unsupported turns are visible to platform admins through the dedicated gap queue, without access to other turns/session history. Chat sessions and turns are retained for 30 days from session creation plus cleanup lag. Schedule `npm run db:cleanup:chat --workspace backend` daily with maintenance credentials; it cascades expired sessions/turns and removes old request counters. Provider account data controls apply to externally processed text; configure them when enabling this flow. Synthetic tests verify French/Darija text survives HTTP, PostgreSQL and provider-context assembly, isolation, duplicate suppression, lease fencing, role revocation, retention and concurrent quota reservations. Live model quality, grounding and the proposed held-out Darija/French evaluation set still need evaluation with the chosen model before real onboarding.
+
+Implementation references: [Responses API](https://developers.openai.com/api/reference/resources/responses/methods/create), [structured outputs](https://developers.openai.com/api/docs/guides/structured-outputs), and [PostgreSQL queue locking](https://www.postgresql.org/docs/18/explicit-locking.html).
+
 ## Next increments
 
-1. Scoped AI Builder setup chat and requirement extraction.
-2. COD capabilities, connector adapters and provider-failure fixtures.
-3. Connection onboarding, publication and durable runtime, then React/Flutter client flows.
+1. COD capabilities, connector adapters and provider-failure fixtures.
+2. Connection onboarding, publication and durable runtime, then React/Flutter client flows.
 
 WhatsApp and Sheets adapters, inference, order records and dashboards remain unimplemented. The architecture's release acceptance criteria still apply to those increments.

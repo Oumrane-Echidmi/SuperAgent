@@ -8,8 +8,9 @@ import { workflowRoutes } from './workflow-routes.ts';
 import { scenarioRoutes } from './scenario-routes.ts';
 import { builderRoutes } from './builder-routes.ts';
 import { matchingRoutes } from './matching-routes.ts';
+import { builderChatRoutes } from './builder-chat-routes.ts';
 
-export function createApp(db?: Database) {
+export function createApp(db?: Database, options: { builderAiEnabled?: boolean } = {}) {
   const app = express();
   app.disable('x-powered-by');
   app.use((_req, res, next) => {
@@ -24,6 +25,7 @@ export function createApp(db?: Database) {
   if (db) app.use('/v1', scenarioRoutes(db));
   if (db) app.use('/v1', builderRoutes(db));
   if (db) app.use('/v1', matchingRoutes(db));
+  if (db) app.use('/v1', builderChatRoutes(db, options.builderAiEnabled ?? false));
   app.post('/v1/graph-validations', (req, res) => {
     const report = validateGraph(req.body);
     if (!report.valid) {

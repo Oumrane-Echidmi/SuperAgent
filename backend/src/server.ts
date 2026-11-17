@@ -7,14 +7,18 @@ if (!Number.isInteger(port) || port < 1 || port > 65535) {
 }
 if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is required. Apply migrations before starting the API.');
 const db = new Database(process.env.DATABASE_URL);
+const builderAiEnabled = process.env.BUILDER_AI_ENABLED ?? 'false';
+if (!['true', 'false'].includes(builderAiEnabled)) throw new Error('BUILDER_AI_ENABLED must be true or false.');
 try {
   await db.checkRuntimeRole();
-  await db.pool.query('SELECT 1 FROM sessions, platform_admins, scenarios, scenario_releases, scenario_audit, builder_drafts, draft_revisions, draft_simulations, draft_approvals, builder_match_requests LIMIT 0');
+  for (const table of ['sessions', 'platform_admins', 'scenarios', 'scenario_releases', 'scenario_audit', 'builder_drafts', 'draft_revisions', 'draft_simulations', 'draft_approvals', 'builder_match_requests', 'builder_chat_sessions', 'builder_chat_turns', 'builder_ai_quota']) {
+    await db.pool.query(`SELECT 1 FROM ${table} LIMIT 0`);
+  }
 } catch {
   await db.pool.end();
   throw new Error('Database startup checks failed. Check runtime credentials and apply migrations.');
 }
-const server = createApp(db).listen(port, '127.0.0.1', () => {
+const server = createApp(db, { builderAiEnabled: builderAiEnabled === 'true' }).listen(port, '127.0.0.1', () => {
   console.log(`SuperAgent development API: http://127.0.0.1:${port}`);
 });
 for (const signal of ['SIGINT', 'SIGTERM'] as const) {
