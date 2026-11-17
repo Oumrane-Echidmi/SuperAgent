@@ -236,7 +236,7 @@ Recipient, phone, address, staff evidence and historical summaries are tenant bu
 
 Append success requires matching spreadsheet ID, one updated row, exact cell/column counts and a matching returned tab/range. Transport errors, server errors, malformed responses and cancellation after dispatch produce `OUTCOME_UNKNOWN`. There are no automatic retries. The eventual delivery worker must persist the operation and dispatch attempt first, bind an owner-authorized destination, include the stable order ID in the row, and reconcile uncertain writes before another append. Even valid returned range evidence is not an exactly-once guarantee and can later be edited by a spreadsheet user. Authorization failure, rate limiting and rejected requests have separate safe error codes; provider response bodies are never exposed in errors.
 
-Provider protocol tests use mocked requests only. Existing COD intents remain AWAITING_CONNECTION: destination selection, reconciliation and a delivery worker remain to be implemented. No additional dependencies are required to run the existing server.
+Provider protocol tests use mocked requests only. Existing COD intents remain AWAITING_CONNECTION: destination binding is a separate setup record and does not activate delivery. Reconciliation and a delivery worker remain to be implemented. No additional dependencies are required to run the existing server.
 
 ## Google account connection API
 
@@ -260,11 +260,34 @@ Authorization attempts expire after ten minutes and bind tenant, initiating user
 
 States are AUTHORIZING, EXCHANGING, CONNECTED, FAILED and DISCONNECTED. Reads report EXPIRED for elapsed pending attempts. CONNECTED means a usable offline grant was received at that time; it is not a continuous health check, spreadsheet permission check or completed sync. Local disconnect deletes the stored credential, but does not revoke the Google-side grant or delete remote files. Users can remove that grant through their Google Account permissions. Reconnection creates a new identity.
 
-Run `npm run db:cleanup:google --workspace backend` every 15 minutes using privileged maintenance credentials. It erases expired pending verifier/state data and removes FAILED/DISCONNECTED metadata after 30 days. Connected credentials persist until local disconnect or privileged tenant deletion. Configure production backup retention and secret-manager key rotation separately; retained backups may contain encrypted historical credentials. No live Google authorization or sheet write was performed by the test suite.
+Run `npm run db:cleanup:google --workspace backend` every 15 minutes using privileged maintenance credentials. It erases expired pending verifier/state data and removes FAILED/DISCONNECTED metadata after 30 days unless a retained destination references it. Connected credentials persist until local disconnect or privileged tenant deletion. Configure production backup retention and secret-manager key rotation separately; retained backups may contain encrypted historical credentials. No live Google authorization or sheet write was performed by the test suite.
+
+## Spreadsheet inspection and destination binding
+
+Apply migration 009 with `npm run db:migrate`; update the test database with `npm run db:setup:test --workspace backend`. These endpoints use the existing opt-in Google configuration and a CONNECTED connection belonging to the same tenant. Only owners can inspect or manage destinations. Staff and the AI Builder worker cannot read destination rows, and runtime SQL cannot update/delete the immutable selection records.
+
+| Endpoint under `/v1/tenants/:tenantId` | Request / result |
+|---|---|
+| `POST /connections/google/:id/spreadsheet-inspections` | [Inspection example](backend/examples/sheet-inspection.json) → spreadsheet title and available grid tabs, with numeric `sheetId`, title and dimensions |
+| `POST /sheet-destinations` | [Destination example](backend/examples/sheet-destination.json): `{ id, connectionId, spreadsheetId, sheetId }` → immutable destination with names observed during setup, actor and `checkedAt` |
+| `GET /sheet-destinations` | Paginated owner-only destinations (`limit` 1–100, default 20; `offset` 0–10000) |
+| `GET /sheet-destinations/:id` | One destination and its connection's current local status |
+
+Replace example IDs with a new client-generated destination UUID, an actual connected Google connection ID, an app-authorized spreadsheet ID and a numeric tab ID from inspection. An identical creation retry returns `200` with the retained selection; first creation returns `201`. Reusing the destination ID for a different connection/file/tab returns `409 DESTINATION_ID_REUSED` without contacting Google. Replaying a saved selection retrieves its original snapshot; it does not revalidate access. Choose a new ID to capture a newly checked selection. Existing destinations remain readable/replayable when Google setup is disabled.
+
+The backend refreshes the credential and checks Google's [file metadata](https://developers.google.com/workspace/drive/api/reference/rest/v3/files/get) for matching file ID, spreadsheet MIME type, non-trashed state and `capabilities.canEdit`. It then retrieves [spreadsheet metadata](https://developers.google.com/workspace/sheets/api/reference/rest/v4/spreadsheets/get) with a narrow field mask, without reading cell values. Object/data-source tabs are excluded; only a checked GRID tab can be bound. Binding repeats inspection rather than trusting client-supplied titles or a previous preview. Responses and stored snapshots include no tokens or envelopes. Calls use fixed provider URLs, reject redirects, bound bodies to 64 KiB and use the existing provider deadlines. Up to 200 tabs are accepted; oversized metadata fails safely.
+
+`ACCESS_CHECKED` means file edit capability and tab metadata were observed at `checkedAt`. It does not prove protected ranges are writable, validate headers/column mappings, guarantee ongoing access, claim ownership of the Google file or activate a workflow. Disconnect changes the derived destination status to `CONNECTION_UNAVAILABLE` and erases credentials; it preserves the immutable destination. Renaming/deleting tabs or changing permissions on Google does not rewrite old snapshots. Future delivery must resolve the numeric tab ID afresh and validate the write schema and access before writing.
+
+Each connection permits one refresh/inspection operation at a time through a 60-second PostgreSQL lease with a random fence ID. No provider HTTP request runs inside a database transaction. Concurrent use returns `409 GOOGLE_BUSY`; an expired lease can be reclaimed, and a late result cannot release the new lease or persist a destination. Owner/session/connection state and lease expiry are rechecked after refresh and before returning metadata or saving a selection. A returned replacement refresh token is encrypted and saved under that fence before metadata inspection; a later metadata failure does not discard the replacement. A lost refresh response/credential commit can still require reconnection. Access tokens are never persisted or returned. Failed checks consume the limit of 20 checks per connection per 15 minutes; retries of existing immutable selections do not consume it. A revoked owner/session may prevent lease cleanup, so another owner may need to wait for the lease to expire.
+
+`409 GOOGLE_RECONNECT_REQUIRED` means the local connection/configuration or refresh grant cannot be used. `403 SPREADSHEET_UNAVAILABLE` means the selected file could not pass the access checks. `422 SHEET_TAB_UNAVAILABLE` means the selected numeric tab is not an available grid tab. Provider/response failures return a safe `502 GOOGLE_CHECK_FAILED`; provider bodies are not exposed. There are no automatic provider retries. The backend does not grant access to a pasted file ID: `drive.file` still requires a file already authorized to this Google app, normally through a future Picker UI or app-created file. That UI and the OAuth callback client remain pending.
+
+Destination metadata persists until privileged tenant deletion, including disconnected connection metadata required by its foreign key. Tenant deletion cascades destinations; credential cleanup does not delete referenced selections. Configure production export/deletion and backup policies for these business metadata snapshots. This increment makes no Sheets writes, changes no COD intent state and uses mocked Google transport in tests.
 
 ## Next increments
 
-1. Google file selection, tenant destination binding and durable Sheets delivery/reconciliation using the connection API.
+1. Durable Sheets delivery/reconciliation using immutable destinations; callback and file picker client flows.
 2. Verified WhatsApp intake.
 3. Registered COD scenario actions, publication and durable runtime, then React/Flutter client flows.
 

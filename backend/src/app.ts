@@ -13,8 +13,10 @@ import { codRoutes } from './cod-routes.ts';
 import { codDashboardRoutes } from './cod-dashboard.ts';
 import { googleConnectionRoutes } from './google-connection-routes.ts';
 import type { GoogleConnectionConfig, GoogleOAuth } from './google-oauth.ts';
+import { sheetDestinationRoutes } from './sheet-destination-routes.ts';
+import type { GoogleSheetsAccess } from './google-access.ts';
 
-export function createApp(db?: Database, options: { builderAiEnabled?: boolean; google?: GoogleConnectionConfig; googleOAuth?: GoogleOAuth } = {}) {
+export function createApp(db?: Database, options: { builderAiEnabled?: boolean; google?: GoogleConnectionConfig; googleOAuth?: GoogleOAuth; googleSheets?: GoogleSheetsAccess } = {}) {
   const app = express();
   app.disable('x-powered-by');
   app.use((_req, res, next) => {
@@ -33,6 +35,7 @@ export function createApp(db?: Database, options: { builderAiEnabled?: boolean; 
   if (db) app.use('/v1', codRoutes(db));
   if (db) app.use('/v1', codDashboardRoutes(db));
   if (db) app.use('/v1', googleConnectionRoutes(db, options.google, options.googleOAuth));
+  if (db) app.use('/v1', sheetDestinationRoutes(db, options.google, options.googleSheets));
   app.post('/v1/graph-validations', (req, res) => {
     const report = validateGraph(req.body);
     if (!report.valid) {

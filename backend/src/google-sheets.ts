@@ -9,6 +9,9 @@ const token = z.string().min(1).max(16000).regex(/^[\x21-\x7e]+$/);
 const destinationSchema = z.strictObject({ spreadsheetId: z.string().regex(/^[a-zA-Z0-9_-]{1,200}$/),
   tab: z.string().min(1).max(100).regex(/^[^\x00-\x1f\x7f]+$/) });
 type Destination = z.infer<typeof destinationSchema>;
+export const spreadsheetIdSchema = destinationSchema.shape.spreadsheetId;
+const gridSchema = z.object({ rowCount: z.number().int().positive().max(10000000), columnCount: z.number().int().positive().max(18278) });
+export type SpreadsheetInspection = { spreadsheetId: string; title: string; tabs: { sheetId: number; title: string; rowCount: number; columnCount: number }[] };
 
 export async function readGoogleResponse(response: Response): Promise<unknown> {
   if (!response.body) throw new Error();
@@ -45,9 +48,46 @@ export class GoogleSheetsProvider {
         throw new GoogleFailure(response.status === 400 || response.status === 401 || response.status === 403 ? 'AUTHORIZATION_FAILED'
           : response.status === 429 ? 'RATE_LIMITED' : 'REQUEST_REJECTED');
       }
-      const result = z.object({ access_token: token, token_type: z.literal('Bearer'), expires_in: z.number().int().positive().max(86400) }).safeParse(await readGoogleResponse(response));
+      const result = z.object({ access_token: token, token_type: z.literal('Bearer'), expires_in: z.number().int().positive().max(86400), refresh_token: token.optional() }).safeParse(await readGoogleResponse(response));
       if (!result.success) throw new GoogleFailure('INVALID_RESPONSE');
-      return { accessToken: result.data.access_token, expiresIn: result.data.expires_in };
+      return { accessToken: result.data.access_token, expiresIn: result.data.expires_in, ...(result.data.refresh_token ? { refreshToken: result.data.refresh_token } : {}) };
+    } catch (error) {
+      if (error instanceof GoogleFailure) throw error;
+      throw new GoogleFailure('INVALID_RESPONSE');
+    }
+  }
+  async inspect(accessToken: string, spreadsheetId: string, signal?: AbortSignal): Promise<SpreadsheetInspection> {
+    token.parse(accessToken); spreadsheetIdSchema.parse(spreadsheetId);
+    const abort = AbortSignal.any([AbortSignal.timeout(15000), ...(signal ? [signal] : [])]);
+    const get = async (url: URL) => {
+      abort.throwIfAborted();
+      const response = await this.request(url, { method: 'GET', redirect: 'error', signal: abort, headers: { Authorization: `Bearer ${accessToken}` } });
+      if (!response.ok) {
+        await response.body?.cancel();
+        throw new GoogleFailure(response.status === 401 || response.status === 403 ? 'AUTHORIZATION_FAILED'
+          : response.status === 429 ? 'RATE_LIMITED' : 'REQUEST_REJECTED');
+      }
+      return readGoogleResponse(response);
+    };
+    try {
+      const fileUrl = new URL(`https://www.googleapis.com/drive/v3/files/${spreadsheetId}`);
+      fileUrl.search = new URLSearchParams({ fields: 'id,mimeType,trashed,capabilities(canEdit)', supportsAllDrives: 'true' }).toString();
+      const file = z.object({ id: z.literal(spreadsheetId), mimeType: z.string(), trashed: z.boolean(), capabilities: z.object({ canEdit: z.boolean() }) }).safeParse(await get(fileUrl));
+      if (!file.success) throw new GoogleFailure('INVALID_RESPONSE');
+      if (file.data.trashed || !file.data.capabilities.canEdit || file.data.mimeType !== 'application/vnd.google-apps.spreadsheet') throw new GoogleFailure('REQUEST_REJECTED');
+      const url = new URL(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}`);
+      url.search = new URLSearchParams({ includeGridData: 'false', fields: 'spreadsheetId,properties(title),sheets(properties(sheetId,title,sheetType,gridProperties(rowCount,columnCount)))' }).toString();
+      const result = z.object({ spreadsheetId: z.literal(spreadsheetId), properties: z.object({ title: z.string().min(1).max(500) }), sheets: z.array(z.object({ properties: z.object({
+        sheetId: z.number().int().min(0).max(2147483647), title: destinationSchema.shape.tab, sheetType: z.enum(['GRID', 'OBJECT', 'DATA_SOURCE']), gridProperties: gridSchema.optional(),
+      }) })).min(1).max(200) }).safeParse(await get(url));
+      if (!result.success || new Set(result.data.sheets.map(sheet => sheet.properties.sheetId)).size !== result.data.sheets.length) throw new GoogleFailure('INVALID_RESPONSE');
+      const tabs: SpreadsheetInspection['tabs'] = [];
+      for (const { properties } of result.data.sheets) {
+        if (properties.sheetType !== 'GRID') continue;
+        if (!properties.gridProperties) throw new GoogleFailure('INVALID_RESPONSE');
+        tabs.push({ sheetId: properties.sheetId, title: properties.title, ...properties.gridProperties });
+      }
+      return { spreadsheetId, title: result.data.properties.title, tabs };
     } catch (error) {
       if (error instanceof GoogleFailure) throw error;
       throw new GoogleFailure('INVALID_RESPONSE');

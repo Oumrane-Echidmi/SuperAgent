@@ -1,11 +1,11 @@
 import { Router } from 'express';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { z } from 'zod';
-import type { PoolClient } from 'pg';
 import { Database, HttpError, hashToken } from './database.ts';
 import { readBearerToken } from './auth.ts';
 import { GoogleOAuthProvider } from './google-oauth.ts';
 import type { GoogleConnectionConfig, GoogleOAuth } from './google-oauth.ts';
+import { requireGoogleOwner as requireOwner } from './google-access.ts';
 
 const publicColumns = `id, CASE WHEN status IN ('AUTHORIZING','EXCHANGING') AND expires_at <= clock_timestamp() THEN 'EXPIRED' ELSE status END AS status,
   scopes, created_by AS "createdBy", created_at AS "createdAt", expires_at AS "expiresAt", connected_at AS "connectedAt", updated_at AS "updatedAt"`;
@@ -13,11 +13,6 @@ function parse<T>(schema: z.ZodType<T>, value: unknown): T {
   const result = schema.safeParse(value);
   if (!result.success) throw new HttpError(422, 'INVALID_INPUT', 'Check the request fields.');
   return result.data;
-}
-async function requireOwner(client: PoolClient, tenantId: string) {
-  const member = await client.query('SELECT role FROM memberships WHERE tenant_id=$1', [tenantId]);
-  if (!member.rowCount) throw new HttpError(404, 'NOT_FOUND', 'Connection not found.');
-  if (member.rows[0].role !== 'OWNER') throw new HttpError(403, 'FORBIDDEN', 'Only an owner can manage connections.');
 }
 function unavailable(): never { throw new HttpError(409, 'AUTHORIZATION_UNAVAILABLE', 'Start a new Google connection attempt.'); }
 const notFound = () => new HttpError(404, 'NOT_FOUND', 'Connection not found.');
@@ -68,7 +63,7 @@ export function googleConnectionRoutes(db: Database, config?: GoogleConnectionCo
     const bearer = readBearerToken(req.headers.authorization); const tenantId = parse(z.uuid(), req.params.tenantId); const id = parse(z.uuid(), req.params.id);
     const result = await db.authenticated(bearer, async (client, userId) => {
       await requireOwner(client, tenantId);
-      const row = await client.query(`UPDATE google_connections SET status='DISCONNECTED',state_hash=NULL,verifier_envelope=NULL,credential_envelope=NULL,
+      const row = await client.query(`UPDATE google_connections SET status='DISCONNECTED',state_hash=NULL,verifier_envelope=NULL,credential_envelope=NULL,access_lease_id=NULL,access_lease_until=NULL,
         disconnected_by=$3,updated_at=clock_timestamp() WHERE tenant_id=$1 AND id=$2 RETURNING ${publicColumns}`, [tenantId, id, userId]);
       if (!row.rowCount) throw notFound(); return row.rows[0];
     });
