@@ -18,6 +18,7 @@ import type { GoogleSheetsAccess } from './google-access.ts';
 import { sheetDeliveryRoutes } from './sheet-delivery-routes.ts';
 import type { GoogleDeliveryProvider } from './sheet-delivery.ts';
 import { sheetJobRoutes } from './sheet-job-routes.ts';
+import { workspaceRoutes } from './workspace-routes.ts';
 
 export function createApp(db?: Database, options: { builderAiEnabled?: boolean; google?: GoogleConnectionConfig; googleOAuth?: GoogleOAuth; googleSheets?: GoogleSheetsAccess; sheetDeliveryEnabled?: boolean; googleDelivery?: GoogleDeliveryProvider } = {}) {
   const app = express();
@@ -36,6 +37,7 @@ export function createApp(db?: Database, options: { builderAiEnabled?: boolean; 
   if (db) app.use('/v1', matchingRoutes(db));
   if (db) app.use('/v1', builderChatRoutes(db, options.builderAiEnabled ?? false));
   if (db) app.use('/v1', codRoutes(db));
+  if (db) app.use('/v1', workspaceRoutes(db));
   if (db) app.use('/v1', codDashboardRoutes(db));
   if (db) app.use('/v1', googleConnectionRoutes(db, options.google, options.googleOAuth));
   if (db) app.use('/v1', sheetDestinationRoutes(db, options.google, options.googleSheets));

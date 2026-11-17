@@ -15,6 +15,7 @@ const builderAiEnabled = process.env.BUILDER_AI_ENABLED ?? 'false';
 if (!['true', 'false'].includes(builderAiEnabled)) throw new Error('BUILDER_AI_ENABLED must be true or false.');
 try {
   await db.checkRuntimeRole();
+  for (const table of ['workspace_records', 'workspace_messages']) await db.pool.query(`SELECT 1 FROM ${table} LIMIT 0`);
   for (const table of ['sessions', 'platform_admins', 'scenarios', 'scenario_releases', 'scenario_audit', 'builder_drafts', 'draft_revisions', 'draft_simulations', 'draft_approvals', 'builder_match_requests', 'builder_chat_sessions', 'builder_chat_turns', 'builder_ai_quota', 'conversations', 'order_attempts', 'order_attempt_revisions', 'order_decision_receipts', 'orders', 'sheet_sync_requests', 'google_connections', 'sheet_destinations', 'sheet_deliveries', 'sheet_delivery_jobs']) {
     await db.pool.query(`SELECT 1 FROM ${table} LIMIT 0`);
   }
