@@ -240,11 +240,20 @@ test("real sign-in, profile, confirmation retry, dashboard, mobile, logout and e
     await expect(
       page.getByRole("heading", { name: "Today at a glance" }),
     ).toBeVisible();
+    const expiredResponse = page.waitForResponse(
+      (response) => response.url().includes("/v1/tenants/") && response.status() === 401,
+    );
     await admin.query(
       "UPDATE sessions SET expires_at=now()-interval '1 second' WHERE user_id=$1",
       [fixture.user_id],
     );
-    await page.getByRole("button", { name: "Refresh", exact: true }).click();
+    // An initial workspace read may already receive 401 and remove Refresh.
+    try {
+      await page.getByRole("button", { name: "Refresh", exact: true }).click({ timeout: 1500 });
+    } catch {
+      await expect(page.getByRole("heading", { name: "Welcome back." })).toBeVisible();
+    }
+    await expiredResponse;
     await expect(
       page.getByRole("heading", { name: "Welcome back." }),
     ).toBeVisible();
