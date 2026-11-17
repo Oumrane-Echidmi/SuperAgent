@@ -228,9 +228,20 @@ Dashboard query dates are inclusive and span at most 366 days. The server uses `
 
 Recipient, phone, address, staff evidence and historical summaries are tenant business/personal data. Current records remain until privileged tenant deletion, which cascades orders, receipts, revision history and pending projections. Production-specific retention, export/deletion, backups and provider-side projection deletion must be configured before onboarding real customer data; this local foundation makes no compliance-retention claim.
 
+## Google Sheets protocol foundation
+
+`backend/src/credentials.ts` provides server-only AES-256-GCM credential envelopes with a random 96-bit nonce, authenticated version/key ID and tenant/provider/connection context. Keys are exactly 32 random bytes encoded as base64, supplied by the calling service from its secret manager. The active key encrypts new values; retained keys decrypt older envelopes for rotation. Copying an envelope to a different tenant or connection fails authentication. This primitive does not authorize access: the calling service must check ownership before decrypting. No key, token or envelope is exposed through an API in this increment.
+
+`backend/src/google-sheets.ts` implements bounded Google refresh-token and single-row append requests. Provider URLs are fixed, redirects are rejected, calls have a 15-second deadline and response bodies have a 64 KiB limit. Sheets writes accept 1–26 string cells (up to 4,000 characters each), quote the selected tab name and use RAW input to preserve literal customer text, phone prefixes and exact decimal amounts. This follows Google's [append contract](https://developers.google.com/workspace/sheets/api/reference/rest/v4/spreadsheets.values/append), [RAW input behavior](https://developers.google.com/workspace/sheets/api/reference/rest/v4/ValueInputOption) and [refresh-token protocol](https://developers.google.com/identity/protocols/oauth2/web-server#offline).
+
+Append success requires matching spreadsheet ID, one updated row, exact cell/column counts and a matching returned tab/range. Transport errors, server errors, malformed responses and cancellation after dispatch produce `OUTCOME_UNKNOWN`. There are no automatic retries. The eventual delivery worker must persist the operation and dispatch attempt first, bind an owner-authorized destination, include the stable order ID in the row, and reconcile uncertain writes before another append. Even valid returned range evidence is not an exactly-once guarantee and can later be edited by a spreadsheet user. Authorization failure, rate limiting and rejected requests have separate safe error codes; provider response bodies are never exposed in errors.
+
+These are tested library primitives, with mocked provider requests only. OAuth consent/callback, credential persistence, tenant destination selection, reconciliation and a delivery worker remain to be implemented. No runtime path calls Google yet; existing COD intents remain AWAITING_CONNECTION. No additional dependencies or configuration are required to run the existing server.
+
 ## Next increments
 
-1. Verified WhatsApp intake and Google Sheets connection/delivery adapters.
-2. Registered COD scenario actions, publication and durable runtime, then React/Flutter client flows.
+1. Google OAuth connection, tenant destination binding and durable Sheets delivery/reconciliation using the protocol foundation.
+2. Verified WhatsApp intake.
+3. Registered COD scenario actions, publication and durable runtime, then React/Flutter client flows.
 
-WhatsApp and Sheets adapters, inference, order records and dashboards remain unimplemented. The architecture's release acceptance criteria still apply to those increments.
+Automated WhatsApp/Sheets workflows and Business Agent inference remain unimplemented. Manual order records and outcome dashboards are available. The architecture's release acceptance criteria still apply to future increments.
