@@ -11,8 +11,10 @@ import { matchingRoutes } from './matching-routes.ts';
 import { builderChatRoutes } from './builder-chat-routes.ts';
 import { codRoutes } from './cod-routes.ts';
 import { codDashboardRoutes } from './cod-dashboard.ts';
+import { googleConnectionRoutes } from './google-connection-routes.ts';
+import type { GoogleConnectionConfig, GoogleOAuth } from './google-oauth.ts';
 
-export function createApp(db?: Database, options: { builderAiEnabled?: boolean } = {}) {
+export function createApp(db?: Database, options: { builderAiEnabled?: boolean; google?: GoogleConnectionConfig; googleOAuth?: GoogleOAuth } = {}) {
   const app = express();
   app.disable('x-powered-by');
   app.use((_req, res, next) => {
@@ -30,6 +32,7 @@ export function createApp(db?: Database, options: { builderAiEnabled?: boolean }
   if (db) app.use('/v1', builderChatRoutes(db, options.builderAiEnabled ?? false));
   if (db) app.use('/v1', codRoutes(db));
   if (db) app.use('/v1', codDashboardRoutes(db));
+  if (db) app.use('/v1', googleConnectionRoutes(db, options.google, options.googleOAuth));
   app.post('/v1/graph-validations', (req, res) => {
     const report = validateGraph(req.body);
     if (!report.valid) {

@@ -10,7 +10,7 @@ const destinationSchema = z.strictObject({ spreadsheetId: z.string().regex(/^[a-
   tab: z.string().min(1).max(100).regex(/^[^\x00-\x1f\x7f]+$/) });
 type Destination = z.infer<typeof destinationSchema>;
 
-async function boundedJson(response: Response): Promise<unknown> {
+export async function readGoogleResponse(response: Response): Promise<unknown> {
   if (!response.body) throw new Error();
   const reader = response.body.getReader(); const chunks: Uint8Array[] = []; let size = 0;
   try {
@@ -45,7 +45,7 @@ export class GoogleSheetsProvider {
         throw new GoogleFailure(response.status === 400 || response.status === 401 || response.status === 403 ? 'AUTHORIZATION_FAILED'
           : response.status === 429 ? 'RATE_LIMITED' : 'REQUEST_REJECTED');
       }
-      const result = z.object({ access_token: token, token_type: z.literal('Bearer'), expires_in: z.number().int().positive().max(86400) }).safeParse(await boundedJson(response));
+      const result = z.object({ access_token: token, token_type: z.literal('Bearer'), expires_in: z.number().int().positive().max(86400) }).safeParse(await readGoogleResponse(response));
       if (!result.success) throw new GoogleFailure('INVALID_RESPONSE');
       return { accessToken: result.data.access_token, expiresIn: result.data.expires_in };
     } catch (error) {
@@ -74,7 +74,7 @@ export class GoogleSheetsProvider {
           : response.status === 401 || response.status === 403 ? 'AUTHORIZATION_FAILED' : response.status === 429 ? 'RATE_LIMITED' : 'REQUEST_REJECTED');
       }
       const result = z.object({ spreadsheetId: z.literal(target.spreadsheetId), updates: z.object({ updatedRange: z.string().max(500),
-        updatedRows: z.literal(1), updatedColumns: z.literal(values.length), updatedCells: z.literal(values.length) }) }).safeParse(await boundedJson(response));
+        updatedRows: z.literal(1), updatedColumns: z.literal(values.length), updatedCells: z.literal(values.length) }) }).safeParse(await readGoogleResponse(response));
       if (!result.success) throw new GoogleFailure('OUTCOME_UNKNOWN');
       // Google can omit quotes for simple titles. Compare a canonical tab name and a single positive row.
       const match = /^(.*)!A([1-9][0-9]*):([A-Z]+)([1-9][0-9]*)$/.exec(result.data.updates.updatedRange);

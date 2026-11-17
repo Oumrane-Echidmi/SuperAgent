@@ -236,11 +236,35 @@ Recipient, phone, address, staff evidence and historical summaries are tenant bu
 
 Append success requires matching spreadsheet ID, one updated row, exact cell/column counts and a matching returned tab/range. Transport errors, server errors, malformed responses and cancellation after dispatch produce `OUTCOME_UNKNOWN`. There are no automatic retries. The eventual delivery worker must persist the operation and dispatch attempt first, bind an owner-authorized destination, include the stable order ID in the row, and reconcile uncertain writes before another append. Even valid returned range evidence is not an exactly-once guarantee and can later be edited by a spreadsheet user. Authorization failure, rate limiting and rejected requests have separate safe error codes; provider response bodies are never exposed in errors.
 
-These are tested library primitives, with mocked provider requests only. OAuth consent/callback, credential persistence, tenant destination selection, reconciliation and a delivery worker remain to be implemented. No runtime path calls Google yet; existing COD intents remain AWAITING_CONNECTION. No additional dependencies or configuration are required to run the existing server.
+Provider protocol tests use mocked requests only. Existing COD intents remain AWAITING_CONNECTION: destination selection, reconciliation and a delivery worker remain to be implemented. No additional dependencies are required to run the existing server.
+
+## Google account connection API
+
+Apply migration 008 with `npm run db:migrate` and update the dedicated test database with `npm run db:setup:test --workspace backend`. Google connection creation/completion is disabled by default. To enable it, set `GOOGLE_CONNECTIONS_ENABLED=true`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI`, `CREDENTIAL_ACTIVE_KEY_ID` and `CREDENTIAL_KEYS_JSON` (a JSON object mapping key IDs to random 32-byte base64 keys). Keep real configuration outside git. Startup rejects incomplete enabled configuration with a safe error. Disabling new setup still permits owners to inspect or locally disconnect previous connections.
+
+Register a Google **Web application** OAuth client and its exact trusted client callback URL. This backend increment supplies the start/complete API; it does not include a browser callback page or mobile deep-link flow. HTTPS callback URLs are required except `http://localhost` / `http://127.0.0.1` for local development. URLs cannot contain userinfo, query parameters or fragments and cannot be overridden by a request. The trusted callback client must preserve the selected connection ID, verify the returned state against the authorization it started, remove code/state from its address bar, and submit them to the API using the initiating owner's bearer session. Do not log codes, state, authorization URLs or credentials, or include third-party scripts on that callback page. A missing/cancelled authorization can be locally disconnected and restarted.
+
+| Endpoint under `/v1/tenants/:tenantId/connections/google` | Request / result |
+|---|---|
+| `POST /` | `{}` → `201 { connection, authorizationUrl }`; open the returned URL for consent |
+| `POST /:id/complete` | `{ state, code }` → safe CONNECTED metadata; same initiating user must still be an owner |
+| `GET /` | Paginated owner-only metadata (`limit` 1–100, default 20; `offset` 0–10000) |
+| `GET /:id` | Current safe connection metadata |
+| `DELETE /:id` | Clears local credentials and pending authorization data, returns DISCONNECTED metadata; repeatable |
+
+All endpoints require a live session. Nonmembers receive `404`; staff receive `403`, and PostgreSQL policies also exclude them from connection rows. Responses contain only connection ID, status, granted scopes, initiating actor and timestamps. Tokens, PKCE verifiers and encrypted envelopes are never returned. Connection metadata does not identify a Google email/account: profile scopes are not requested.
+
+Each start creates a fresh connection identity and is limited to five starts per tenant per 15 minutes. It requests offline `drive.file` consent with S256 PKCE, following the [Google authorization flow](https://developers.google.com/identity/protocols/oauth2/web-server) and [PKCE support](https://github.com/googleapis/google-auth-library-nodejs/blob/main/samples/oauth2-codeVerifier.js). Google's [recommended per-file scope](https://developers.google.com/workspace/sheets/api/scopes) will require a later file picker or app-created spreadsheet; connecting alone gives no access to an arbitrary pasted spreadsheet ID.
+
+Authorization attempts expire after ten minutes and bind tenant, initiating user, client ID, redirect URI, state hash and encrypted PKCE verifier. Completion atomically consumes state/verifier before the bounded Google exchange runs outside a database transaction. Concurrent/repeated completion cannot exchange the same attempt twice. A refresh token and required granted scope are mandatory. Only the encrypted refresh token persists, bound to tenant and connection; temporary access tokens and authorization codes do not persist. The API rechecks ownership, expiry and EXCHANGING status before storing a credential. Disconnecting during exchange prevents late results from reconnecting it. Failed, abandoned or uncertain exchanges require a fresh authorization attempt (`409 AUTHORIZATION_UNAVAILABLE` for consumed/expired attempts, `502 GOOGLE_AUTHORIZATION_FAILED` for provider failures).
+
+States are AUTHORIZING, EXCHANGING, CONNECTED, FAILED and DISCONNECTED. Reads report EXPIRED for elapsed pending attempts. CONNECTED means a usable offline grant was received at that time; it is not a continuous health check, spreadsheet permission check or completed sync. Local disconnect deletes the stored credential, but does not revoke the Google-side grant or delete remote files. Users can remove that grant through their Google Account permissions. Reconnection creates a new identity.
+
+Run `npm run db:cleanup:google --workspace backend` every 15 minutes using privileged maintenance credentials. It erases expired pending verifier/state data and removes FAILED/DISCONNECTED metadata after 30 days. Connected credentials persist until local disconnect or privileged tenant deletion. Configure production backup retention and secret-manager key rotation separately; retained backups may contain encrypted historical credentials. No live Google authorization or sheet write was performed by the test suite.
 
 ## Next increments
 
-1. Google OAuth connection, tenant destination binding and durable Sheets delivery/reconciliation using the protocol foundation.
+1. Google file selection, tenant destination binding and durable Sheets delivery/reconciliation using the connection API.
 2. Verified WhatsApp intake.
 3. Registered COD scenario actions, publication and durable runtime, then React/Flutter client flows.
 
