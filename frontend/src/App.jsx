@@ -1,15 +1,11 @@
 import { Routes, Route, Navigate } from "react-router-dom";
 import Sidebar from "./components/Sidebar";
 import { ToastProvider } from "./context/ToastContext";
-import HomePage from "./pages/HomePage";
-import ChatPage from "./pages/ChatPage";
-import InboxPage from "./pages/InboxPage";
-import BoardPage from "./pages/BoardPage";
-import AgentsPage from "./pages/AgentsPage";
-import DocsPage from "./pages/DocsPage";
-import CompanyBrainPage from "./pages/CompanyBrainPage";
-import WorkflowsPage from "./pages/WorkflowsPage";
-import CanvasPage from "./pages/CanvasPage";
+import ConnectedChatPage from "./pages/ConnectedChatPage";
+import ConnectedInboxPage, {
+  ConversationPage,
+} from "./pages/ConnectedInboxPage";
+import WorkspaceRecordsPage from "./pages/WorkspaceRecordsPage";
 import { WorkspaceProvider, useWorkspace } from "./context/WorkspaceContext";
 import SignInPage from "./pages/SignInPage";
 import LiveHomePage from "./pages/LiveHomePage";
@@ -18,17 +14,6 @@ import NewOrderPage from "./pages/NewOrderPage";
 import OrderDetailsPage from "./pages/OrderDetailsPage";
 import BusinessProfilePage from "./pages/BusinessProfilePage";
 
-function Preview({ children }) {
-  return (
-    <>
-      <div className="live-preview" role="status">
-        Example screen · This content is a preview. Changes here are not saved
-        to your business.
-      </div>
-      {children}
-    </>
-  );
-}
 function Workspace() {
   const { session, tenant, signOut, notice } = useWorkspace();
   if (!session) return <SignInPage />;
@@ -55,77 +40,28 @@ function Workspace() {
           <Route path="/orders/new" element={<NewOrderPage />} />
           <Route path="/orders/:id" element={<OrderDetailsPage />} />
           <Route path="/settings" element={<BusinessProfilePage />} />
-          <Route
-            path="/chat"
-            element={
-              <Preview>
-                <ChatPage />
-              </Preview>
-            }
-          />
-          <Route
-            path="/inbox"
-            element={
-              <Preview>
-                <InboxPage />
-              </Preview>
-            }
-          />
+          <Route path="/chat" element={<ConnectedChatPage />} />
+          <Route path="/inbox" element={<ConnectedInboxPage />} />
+          <Route path="/inbox/:id" element={<ConversationPage />} />
           <Route
             path="/agents"
-            element={
-              <Preview>
-                <AgentsPage />
-              </Preview>
-            }
+            element={<WorkspaceRecordsPage key="agent" kind="agent" />}
           />
           <Route
             path="/docs"
-            element={
-              <Preview>
-                <DocsPage />
-              </Preview>
-            }
+            element={<WorkspaceRecordsPage key="document" kind="document" />}
           />
           <Route
             path="/brain"
-            element={
-              <Preview>
-                <CompanyBrainPage />
-              </Preview>
-            }
+            element={<WorkspaceRecordsPage key="knowledge" kind="knowledge" />}
           />
           <Route
             path="/workflows"
-            element={
-              <Preview>
-                <WorkflowsPage />
-              </Preview>
-            }
+            element={<WorkspaceRecordsPage key="workflow" kind="workflow" />}
           />
           <Route
             path="/canvas"
-            element={
-              <Preview>
-                <CanvasPage />
-              </Preview>
-            }
-          />
-          <Route
-            path="/preview/home"
-            element={
-              <Preview>
-                <HomePage />
-              </Preview>
-            }
-          />
-          <Route
-            path="/preview/board"
-            element={
-              <Preview>
-                <BoardPage />
-              </Preview>
-            }
+            element={<WorkspaceRecordsPage key="canvas" kind="canvas" />}
           />
           <Route path="*" element={<Navigate replace to="/" />} />
         </Routes>

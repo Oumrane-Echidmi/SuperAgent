@@ -46,6 +46,234 @@ test.afterEach(async () => {
   }
 });
 
+test("persistent workspace, workflow canvas and provider-pending model chat", async ({
+  page,
+}, info) => {
+  const admin = new pg.Pool({ connectionString: env.ADMIN_DATABASE_URL }),
+    id = randomUUID(),
+    email = `workspace-${id}@example.test`,
+    errors = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  try {
+    await page.goto("/");
+    await page
+      .getByRole("button", { name: "New here? Create a workspace" })
+      .click();
+    await page.getByLabel("Business name").fill("Real Workspace Shop");
+    await page.getByLabel("Email", { exact: true }).fill(email);
+    await page
+      .getByLabel("Password", { exact: true })
+      .fill(`workspace-fixture-${id}`);
+    await page
+      .getByRole("button", { name: "Create workspace", exact: true })
+      .click();
+    await expect(
+      page.getByRole("heading", { name: "Today at a glance" }),
+    ).toBeVisible();
+    await page.getByRole("link", { name: "Docs", exact: true }).click();
+    await expect(page.getByText("No docs yet", { exact: true })).toBeVisible();
+    await page
+      .getByRole("button", { name: "New document", exact: true })
+      .click();
+    await page.getByLabel("Title", { exact: true }).fill("Delivery policy");
+    await page
+      .getByRole("textbox", { name: "Content", exact: true })
+      .fill("Delivery takes two business days.");
+    await page.getByRole("button", { name: "Save draft", exact: true }).click();
+    await page.getByRole("button", { name: /Delivery policy/ }).click();
+    await expect(
+      page.getByRole("textbox", { name: "Content", exact: true }),
+    ).toHaveValue("Delivery takes two business days.");
+    await page
+      .getByRole("textbox", { name: "Content", exact: true })
+      .fill("Delivery takes three business days.");
+    await page.getByRole("button", { name: "Save draft", exact: true }).click();
+    await page
+      .getByRole("link", { name: "Company Brain", exact: true })
+      .click();
+    await page
+      .getByRole("button", { name: "New knowledge note", exact: true })
+      .click();
+    await page.getByLabel("Title", { exact: true }).fill("Opening hours");
+    await page
+      .getByLabel("Business knowledge")
+      .fill("Monday to Saturday, 9 to 6.");
+    await page.getByRole("button", { name: "Save draft", exact: true }).click();
+    await expect(
+      page.getByRole("button", { name: /Opening hours/ }),
+    ).toBeVisible();
+    await page.getByRole("link", { name: "Agents", exact: true }).click();
+    await page.getByRole("button", { name: "New agent", exact: true }).click();
+    await page.getByLabel("Title", { exact: true }).fill("Shop assistant");
+    await page.getByLabel("Instructions").fill("Explain our delivery policy.");
+    await page
+      .getByRole("combobox", { name: "Model", exact: true })
+      .selectOption("sonnet");
+    await page.getByRole("button", { name: "Save draft", exact: true }).click();
+    await expect(
+      page.getByRole("button", { name: /Shop assistant/ }),
+    ).toBeVisible();
+    await page.getByRole("link", { name: "Workflows", exact: true }).click();
+    await page
+      .getByRole("button", { name: "New workflow", exact: true })
+      .click();
+    await page.getByLabel("Title", { exact: true }).fill("Order review");
+    await page.getByRole("button", { name: "Add node", exact: true }).click();
+    await page.getByLabel("Node label").fill("Review order");
+    await page
+      .getByRole("combobox", { name: "From", exact: true })
+      .selectOption("start");
+    await page
+      .getByRole("combobox", { name: "To", exact: true })
+      .selectOption({ label: "Review order" });
+    await page.getByRole("button", { name: "Connect", exact: true }).click();
+    await expect(
+      page.getByText("2 nodes · 1 connections", { exact: false }),
+    ).toBeVisible();
+    await page.getByRole("button", { name: "Zoom in", exact: true }).click();
+    await expect(page.getByText("120%", { exact: true })).toBeVisible();
+    await page.getByRole("button", { name: "Save draft", exact: true }).click();
+    await page.getByRole("button", { name: /Order review/ }).click();
+    await expect(
+      page.getByRole("button", { name: /action Review order/ }),
+    ).toBeVisible();
+    await page.screenshot({
+      path: info.outputPath("workflow-preview.png"),
+      fullPage: true,
+    });
+    await page.setViewportSize({ width: 390, height: 844 });
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= window.innerWidth,
+      ),
+    ).toBe(true);
+    await page.screenshot({
+      path: info.outputPath("workflow-mobile.png"),
+      fullPage: true,
+    });
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.getByRole("link", { name: "Canvas", exact: true }).click();
+    await page
+      .getByRole("button", { name: "New canvas note", exact: true })
+      .click();
+    await page.getByLabel("Title", { exact: true }).fill("Launch ideas");
+    await page
+      .getByRole("textbox", { name: "Content", exact: true })
+      .fill("A saved planning note.");
+    await page.getByRole("button", { name: "Save draft", exact: true }).click();
+    await expect(
+      page.getByRole("button", { name: /Launch ideas/ }),
+    ).toBeVisible();
+    await page.getByRole("button", { name: /Launch ideas/ }).click();
+    await page.getByRole("button", { name: "Archive", exact: true }).click();
+    await expect(
+      page.getByText("No canvas yet", { exact: true }),
+    ).toBeVisible();
+    await page.getByRole("link", { name: "Inbox", exact: true }).click();
+    await page.getByLabel("Customer reference").fill("Customer 42");
+    await page
+      .getByRole("button", { name: "Add conversation", exact: true })
+      .click();
+    await page
+      .getByRole("link", { name: "Open conversation", exact: true })
+      .click();
+    await expect(
+      page.getByRole("heading", { name: "Customer 42", exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByText("No orders recorded for this conversation."),
+    ).toBeVisible();
+    await page.getByRole("link", { name: "Chat", exact: true }).click();
+    await page.getByRole("button", { name: "New chat", exact: true }).click();
+    await page.getByLabel("Chat title").fill("Planning chat");
+    await page
+      .getByRole("combobox", { name: "Model", exact: true })
+      .selectOption("opus");
+    await expect(
+      page
+        .getByRole("combobox", { name: "Model", exact: true })
+        .locator("option"),
+    ).toHaveCount(4);
+    await page
+      .getByRole("button", { name: "Create chat", exact: true })
+      .click();
+    await page
+      .getByRole("combobox", { name: "Model", exact: true })
+      .selectOption("astra");
+    await page
+      .getByLabel("Message", { exact: true })
+      .fill("Help plan the launch.");
+    let lost = false;
+    await page.route("**/workspace-records/*/messages", async (route) => {
+      if (route.request().method() === "POST" && !lost) {
+        lost = true;
+        await route.fetch();
+        await route.abort("failed");
+      } else await route.continue();
+    });
+    await page
+      .getByRole("button", { name: "Save message", exact: true })
+      .click();
+    await page
+      .getByRole("button", { name: "Retry message", exact: true })
+      .click();
+    await expect(
+      page.getByText("Help plan the launch.", { exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByText("Saved · awaiting provider", { exact: true }),
+    ).toHaveCount(1);
+    await page.getByRole("link", { name: "Docs", exact: true }).click();
+    await page.getByRole("button", { name: /Delivery policy/ }).click();
+    await expect(
+      page.getByRole("textbox", { name: "Content", exact: true }),
+    ).toHaveValue("Delivery takes three business days.");
+    await page.getByRole("link", { name: "Chat", exact: true }).click();
+    await page.getByRole("button", { name: /Planning chat/ }).click();
+    await expect(
+      page.getByText("Help plan the launch.", { exact: true }),
+    ).toBeVisible();
+    const messages = await admin.query(
+      "SELECT model,role,status,text FROM workspace_messages m JOIN tenants t ON t.id=m.tenant_id JOIN users u ON u.id=t.created_by WHERE u.email=$1",
+      [email],
+    );
+    expect(messages.rows).toEqual([
+      {
+        model: "astra",
+        role: "user",
+        status: "AWAITING_PROVIDER",
+        text: "Help plan the launch.",
+      },
+    ]);
+    await expect(
+      page.getByText("Example screen", { exact: false }),
+    ).toHaveCount(0);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.screenshot({
+      path: info.outputPath("chat-mobile.png"),
+      fullPage: true,
+    });
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= window.innerWidth,
+      ),
+    ).toBe(true);
+    expect(errors).toEqual([]);
+  } finally {
+    const users = await admin.query("SELECT id FROM users WHERE email=$1", [
+      email,
+    ]);
+    for (const user of users.rows) {
+      await admin.query("DELETE FROM tenants WHERE created_by=$1", [user.id]);
+      await admin.query("DELETE FROM users WHERE id=$1", [user.id]);
+    }
+    await admin.query("DELETE FROM auth_limits WHERE key=$1", [
+      hash("email:" + email),
+    ]);
+    await admin.end();
+  }
+});
+
 test("real sign-in, profile, confirmation retry, dashboard, mobile, logout and expiry", async ({
   page,
   request,
@@ -241,7 +469,8 @@ test("real sign-in, profile, confirmation retry, dashboard, mobile, logout and e
       page.getByRole("heading", { name: "Today at a glance" }),
     ).toBeVisible();
     const expiredResponse = page.waitForResponse(
-      (response) => response.url().includes("/v1/tenants/") && response.status() === 401,
+      (response) =>
+        response.url().includes("/v1/tenants/") && response.status() === 401,
     );
     await admin.query(
       "UPDATE sessions SET expires_at=now()-interval '1 second' WHERE user_id=$1",
@@ -249,9 +478,13 @@ test("real sign-in, profile, confirmation retry, dashboard, mobile, logout and e
     );
     // An initial workspace read may already receive 401 and remove Refresh.
     try {
-      await page.getByRole("button", { name: "Refresh", exact: true }).click({ timeout: 1500 });
+      await page
+        .getByRole("button", { name: "Refresh", exact: true })
+        .click({ timeout: 1500 });
     } catch {
-      await expect(page.getByRole("heading", { name: "Welcome back." })).toBeVisible();
+      await expect(
+        page.getByRole("heading", { name: "Welcome back." }),
+      ).toBeVisible();
     }
     await expiredResponse;
     await expect(

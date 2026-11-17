@@ -24,27 +24,24 @@ import { useWorkspace } from "../context/WorkspaceContext";
 
 const PRIMARY = [
   { to: "/", label: "Home", icon: Grid2X2, end: true },
-  { to: "/chat", label: "Chat", icon: MessageCircle, badge: "Preview" },
-  { to: "/inbox", label: "Inbox", icon: Inbox, badge: "Preview" },
+  { to: "/chat", label: "Chat", icon: MessageCircle },
+  { to: "/inbox", label: "Inbox", icon: Inbox },
   { to: "/board", label: "Orders", icon: Columns3 },
 ];
 
 const WORKSPACE = [
   { to: "/settings", label: "Business profile", icon: Settings },
-  { to: "/agents", label: "Agents", icon: Users, badge: "Preview" },
-  { to: "/docs", label: "Docs", icon: FileText, badge: "Preview" },
+  { to: "/agents", label: "Agents", icon: Users },
+  { to: "/docs", label: "Docs", icon: FileText },
   {
     to: "/brain",
     label: "Company Brain",
     icon: BrainCircuit,
-    badge: "Preview",
   },
-  { to: "/workflows", label: "Workflows", icon: Workflow, badge: "Preview" },
+  { to: "/workflows", label: "Workflows", icon: Workflow },
 ];
 
-const LABS = [
-  { to: "/canvas", label: "Canvas", icon: Palette, badge: "Preview" },
-];
+const LABS = [{ to: "/canvas", label: "Canvas", icon: Palette }];
 
 function NavItem({ item }) {
   const Icon = item.icon;

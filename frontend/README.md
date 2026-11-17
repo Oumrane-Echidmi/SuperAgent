@@ -1,6 +1,6 @@
 # SuperAgent workspace frontend
 
-The React workspace connects to Express for registration/sign-in, business profiles, manual COD orders, customer decisions, dashboard outcomes and spreadsheet delivery jobs. It preserves the dark workspace shell. Screens without a connected API are labelled **Preview** and show examples.
+The React workspace connects to Express for authentication, business profiles, COD orders, spreadsheet delivery jobs, shared chat and saved workspace drafts. Screens start with your real business records or an empty state.
 
 ## Run locally
 
@@ -46,9 +46,13 @@ Order/decision retries reuse their original IDs and payloads after transport fai
 
 Sheet jobs require an existing configured destination and enabled backend/worker flags. The destination and literal row are displayed before queueing. Active jobs refresh every three seconds. Google consent/callback and file picker UI are not connected yet. Disabled delivery returns a real error, not simulated success; tests never call Google or a model.
 
-## Preview screens
+## Workspace records and provider setup
 
-`/chat`, `/inbox`, `/agents`, `/docs`, `/brain`, `/workflows` and `/canvas` retain the original examples and are labelled Preview on the page and navigation. Interactions stay local and do not save business records or publish agents. Original home/board designs remain at `/preview/home` and `/preview/board`. Builder/catalog, document/knowledge editing, live inbox and Google setup are future UI integration work.
+`/docs`, `/brain`, `/agents` and `/canvas` save tenant-owned documents, knowledge notes, agent configurations and planning notes. Owners create, edit and archive; staff can read. `/workflows` saves visual graph drafts with selectable nodes, an inspector, connections and zoom. These drafts do not publish or execute workflows; publication still requires a released scenario, simulation and exact-revision approval.
+
+`/inbox` lists actual COD conversations, supports manual conversation creation and shows each conversation's order history. WhatsApp messaging is not connected. `/chat` stores shared business conversations and user messages, including the chosen Opus, Sonnet, Astra or Sol alias. The backend catalog marks all four as unconfigured. No assistant replies are fabricated, no provider is called, and adding a provider later must not automatically send old messages. Model aliases need explicit server-side provider mapping before inference is enabled. Knowledge notes are stored text; retrieval/indexing is not yet integrated.
+
+Migration `013_workspace.sql` is required. APIs, permissions and acceptance criteria are described in [WORKSPACE_FEATURES.md](../WORKSPACE_FEATURES.md). Former example routes are removed from the app.
 
 ## Verification
 
