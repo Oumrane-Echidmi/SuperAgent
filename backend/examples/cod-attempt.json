@@ -1,0 +1,13 @@
+{
+  "id": "5a71f119-e48b-4fb2-bced-691d28648241",
+  "conversationId": "af1cf4a2-d12d-4cf2-9148-86922979081c",
+  "details": {
+    "item": "Example article",
+    "quantity": 2,
+    "recipient": "Example customer",
+    "phone": "+212600000000",
+    "address": "Example delivery address",
+    "unitAmountMinor": 12550,
+    "deliveryAmountMinor": 3000
+  }
+}

@@ -192,9 +192,45 @@ Unsupported turns are visible to platform admins through the dedicated gap queue
 
 Implementation references: [Responses API](https://developers.openai.com/api/reference/resources/responses/methods/create), [structured outputs](https://developers.openai.com/api/docs/guides/structured-outputs), and [PostgreSQL queue locking](https://www.postgresql.org/docs/18/explicit-locking.html).
 
+### COD order foundation
+
+Run `npm run db:migrate` after pulling to add the COD tables, and update the test database with `npm run db:setup:test --workspace backend`. This slice supports **staff-recorded manual** conversations and decisions. It does not accept WhatsApp webhooks, infer confirmation from customer text, dispatch to Google Sheets or activate an automated COD workflow. The pure workflow capability catalog remains unchanged; provider-backed COD actions will need registered adapters and publication checks.
+
+Owners and staff may operate their tenant's records using a live bearer session. All records have tenant row policies. Another shop receives `404`; the AI Builder worker has no COD table privileges.
+
+| Endpoint under `/v1/tenants/:tenantId` | Request / result |
+|---|---|
+| `POST /conversations` | [Conversation example](backend/examples/cod-conversation.json); creates a MANUAL, HUMAN_ACTIVE conversation |
+| `GET /conversations/:id` | Manual conversation reference, language and ownership |
+| `POST /order-attempts` | [Attempt example](backend/examples/cod-attempt.json): `{ id, conversationId, details }`; creates one pending attempt |
+| `GET /order-attempts` | Paginated current attempts and their readiness reviews |
+| `GET /order-attempts/:id` | Current details, revision, summary hash, status and missing requirements |
+| `PUT /order-attempts/:id` | `{ expectedRevision, details }`; replaces the collected details and appends immutable revision history |
+| `GET /order-attempts/:id/revisions` | Paginated immutable reviewed details and actor/time |
+| `POST /order-attempts/:id/decisions` | [Decision example](backend/examples/cod-decision.json): replace its zero hash with the current `summaryHash`; requires decision ID, expected revision and evidence |
+| `GET /order-attempts/:id/decisions` | Paginated staff evidence, source and immutable outcomes |
+| `GET /orders` / `GET /orders/:id` | Confirmed orders, review provenance and separate sheet-sync intent |
+| `GET /dashboard/outcomes?from=2026-11-17&to=2026-11-17` | Current attempt outcomes grouped by start date in the configured business timezone |
+
+Conversation references never merge customers by display name. A new conversation/attempt requires an explicit client UUID. Creation retries with the same UUID and original fields return the current resource (`200`, versus `201` on creation); changed intent returns `409`. Each conversation permits one PENDING attempt. `OPEN_ATTEMPT_EXISTS` indicates a competing open attempt. New attempts after a final decision require new IDs and represent new purchase intent.
+
+Collected `details` may omit unknown fields but rejects malformed supplied fields. Required confirmation fields are `item` (1–200 characters), `quantity` (integer 1–1000), `recipient` (1–120), `phone` (a `+` and 8–15 digits), `address` (1–500), `unitAmountMinor` and `deliveryAmountMinor` (integers 0–1,000,000,000). Phone validation checks syntax, not ownership or reachability. Amounts use 100 minor units per MAD. Zero is an explicit amount, never a missing price. Missing customer fields produce focused Darija/French questions. Missing shop prices appear separately in `staffRequirements`; they must come from the shop's current pricing, not a customer's claim or retrieved prose. This initial order shape supports one item/quantity and a delivery fee; tax, stock and fulfillment integrations remain separate work.
+
+The server computes `quantity * unitAmountMinor + deliveryAmountMinor` with bounded integer arithmetic. Reviewed hashes bind tenant, conversation, attempt, normalized details and `cod-1.0.0` policy. Content revisions and hashes are immutable; edits replace the full partial details object, so include earlier collected fields you want to retain. Stale edits/decisions return `409 STALE_REVISION`; a wrong hash returns `409 SUMMARY_CHANGED`. Missing facts block CONFIRM with `422 ORDER_INCOMPLETE`. A future policy change requires resaving/reviewing old pending details before a new decision.
+
+Decision values are CONFIRM, DECLINE or AMBIGUOUS. Each requires nonblank staff evidence (up to 500 characters) and records the authenticated actor as the source `STAFF_RECORDED`; it is not cryptographic proof of a customer message. AMBIGUOUS preserves PENDING. DECLINE closes the attempt without an order. CONFIRM creates exactly one immutable order, with its ID equal to the attempt ID. Final decisions do not change the content revision, and closed attempts cannot be edited/reopened through API or runtime row policies. Delivery and cash collection are not inferred from confirmation.
+
+The decision UUID is tenant-scoped and permanently binds its attempt, revision, hash, decision and evidence while the record is retained. Identical retries replay the original outcome (`200`, versus `201` on creation). Reuse with other parameters returns `409 EVENT_ID_REUSED`. The stable order identity and `cod:sheet:<order-id>` operation key do not contain workflow versions. Concurrent calls serialize by decision and attempt. The order, decision receipt, terminal attempt state and sheet-sync request commit together; a failed insert rolls everything back. No network call is made in that transaction.
+
+Each confirmed order has one immutable `sheet_sync_requests` projection with a versioned payload, stable order ID, exact two-decimal `amountMad`, details and COD status. Its status is **AWAITING_CONNECTION**: this is durable intent, not a completed write. No spreadsheet destination or credential is bound yet, and nothing dispatches it. Order APIs return per-order `amountMinor` as a decimal integer string and expose the separate `sheetSync`. Later connector recovery must retain this operation identity and reconcile ambiguous writes before retrying.
+
+Dashboard query dates are inclusive and span at most 366 days. The server uses `business_profiles.timezone`, groups attempts by their original start date and counts each attempt's current state once. `confirmationRate` is a fraction (`confirmed / (confirmed + declined)`), or `null` without a decision. Monetary totals are exact decimal integer strings. `confirmedOrderValueMinor` is confirmed purchase value, not cash collected; `sheetSyncWaiting` is a separate count. A confirmed, declined and pending attempt yield counts of one each and a 0.5 confirmation rate. Duplicate decision replay preserves those counts. There are no run/fulfillment metrics yet.
+
+Recipient, phone, address, staff evidence and historical summaries are tenant business/personal data. Current records remain until privileged tenant deletion, which cascades orders, receipts, revision history and pending projections. Production-specific retention, export/deletion, backups and provider-side projection deletion must be configured before onboarding real customer data; this local foundation makes no compliance-retention claim.
+
 ## Next increments
 
-1. COD capabilities, connector adapters and provider-failure fixtures.
-2. Connection onboarding, publication and durable runtime, then React/Flutter client flows.
+1. Verified WhatsApp intake and Google Sheets connection/delivery adapters.
+2. Registered COD scenario actions, publication and durable runtime, then React/Flutter client flows.
 
 WhatsApp and Sheets adapters, inference, order records and dashboards remain unimplemented. The architecture's release acceptance criteria still apply to those increments.

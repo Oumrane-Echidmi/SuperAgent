@@ -9,6 +9,8 @@ import { scenarioRoutes } from './scenario-routes.ts';
 import { builderRoutes } from './builder-routes.ts';
 import { matchingRoutes } from './matching-routes.ts';
 import { builderChatRoutes } from './builder-chat-routes.ts';
+import { codRoutes } from './cod-routes.ts';
+import { codDashboardRoutes } from './cod-dashboard.ts';
 
 export function createApp(db?: Database, options: { builderAiEnabled?: boolean } = {}) {
   const app = express();
@@ -26,6 +28,8 @@ export function createApp(db?: Database, options: { builderAiEnabled?: boolean }
   if (db) app.use('/v1', builderRoutes(db));
   if (db) app.use('/v1', matchingRoutes(db));
   if (db) app.use('/v1', builderChatRoutes(db, options.builderAiEnabled ?? false));
+  if (db) app.use('/v1', codRoutes(db));
+  if (db) app.use('/v1', codDashboardRoutes(db));
   app.post('/v1/graph-validations', (req, res) => {
     const report = validateGraph(req.body);
     if (!report.valid) {
@@ -40,7 +44,7 @@ export function createApp(db?: Database, options: { builderAiEnabled?: boolean }
   const errorHandler: ErrorRequestHandler = (error: unknown, _req, res, _next) => {
     if (error instanceof pg.DatabaseError && (error.code === '22P05' || error.code === '22021'
       || (error.code === '23514' && error.constraint === 'scenarios_draft_check'))) {
-      res.status(422).json({ error: { code: 'INVALID_INPUT', message: 'Check text encoding and the stored scenario size.' } });
+      res.status(422).json({ error: { code: 'INVALID_INPUT', message: 'Check the text and field sizes.' } });
       return;
     }
     if (error instanceof HttpError) {
