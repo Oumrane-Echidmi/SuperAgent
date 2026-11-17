@@ -1,9 +1,11 @@
 import express from 'express';
+import pg from 'pg';
 import type { ErrorRequestHandler } from 'express';
 import { validateGraph } from './compiler.ts';
 import { Database, HttpError } from './database.ts';
 import { identityRoutes } from './identity-routes.ts';
 import { workflowRoutes } from './workflow-routes.ts';
+import { scenarioRoutes } from './scenario-routes.ts';
 
 export function createApp(db?: Database) {
   const app = express();
@@ -17,6 +19,7 @@ export function createApp(db?: Database) {
   app.get('/healthz', (_req, res) => { res.json({ status: 'ok' }); });
   app.use('/v1', workflowRoutes());
   if (db) app.use('/v1', identityRoutes(db));
+  if (db) app.use('/v1', scenarioRoutes(db));
   app.post('/v1/graph-validations', (req, res) => {
     const report = validateGraph(req.body);
     if (!report.valid) {
@@ -29,9 +32,15 @@ export function createApp(db?: Database) {
     res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Route not found.' } });
   });
   const errorHandler: ErrorRequestHandler = (error: unknown, _req, res, _next) => {
+    if (error instanceof pg.DatabaseError && (error.code === '22P05' || error.code === '22021'
+      || (error.code === '23514' && error.constraint === 'scenarios_draft_check'))) {
+      res.status(422).json({ error: { code: 'INVALID_INPUT', message: 'Check text encoding and the stored scenario size.' } });
+      return;
+    }
     if (error instanceof HttpError) {
       if (error.status === 429) res.set('Retry-After', '900');
-      res.status(error.status).json({ error: { code: error.code, message: error.message } });
+      res.status(error.status).json({ error: { code: error.code, message: error.message,
+        ...(error.details === undefined ? {} : { details: error.details }) } });
       return;
     }
     const type = typeof error === 'object' && error !== null && 'type' in error ? error.type : undefined;

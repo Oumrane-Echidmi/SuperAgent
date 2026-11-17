@@ -7,10 +7,12 @@ export const hashToken = (token: string) => createHash('sha256').update(token).d
 export class HttpError extends Error {
   readonly status: number;
   readonly code: string;
-  constructor(status: number, code: string, message: string) {
+  readonly details: unknown;
+  constructor(status: number, code: string, message: string, details?: unknown) {
     super(message);
     this.status = status;
     this.code = code;
+    this.details = details;
   }
 }
 
@@ -65,5 +67,12 @@ export class Database {
       window_start = CASE WHEN l.window_start <= now() - interval '15 minutes' THEN now() ELSE l.window_start END
       RETURNING attempts`, [key]);
     if (result.rows[0].attempts > 10) throw new HttpError(429, 'RATE_LIMITED', 'Too many attempts. Try again in 15 minutes.');
+  }
+  async platformAdmin<T>(token: string, work: (client: PoolClient, userId: string) => Promise<T>) {
+    return this.authenticated(token, async (client, userId) => {
+      const admin = await client.query('SELECT 1 FROM platform_admins WHERE user_id = $1', [userId]);
+      if (!admin.rowCount) throw new HttpError(403, 'FORBIDDEN', 'Platform admin access is required.');
+      return work(client, userId);
+    });
   }
 }

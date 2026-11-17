@@ -91,10 +91,37 @@ Success returns `200 { "stage": "bindings", "valid": true, "issues": [], "resolv
 
 Both discovery and validation are public, bounded, stateless endpoints containing no tenant records; validation is safe to retry. A valid binding report does not save a draft, generate an execution manifest, authorize tool use or permit publication. Tenant authorization, approval, connector slots/scopes, destination bindings and execution budgets must be checked by later publication gates. The existing `/v1/graph-validations` format and response remain unchanged. Schema implementation follows the [Zod API](https://zod.dev/api).
 
+### Admin scenario catalog
+
+After pulling this change, run `npm run db:migrate`; the migration runner applies numbered SQL files in order and records each once. Run `npm run db:setup:test --workspace backend` to update the separate test database.
+
+Platform admins are separate from tenant owners. Register a local account, read its user ID from `/v1/me`, then an operator with the administrative database credentials can explicitly grant catalog access using `npm run admin:grant --workspace backend -- <user-uuid>`. Signup never grants this role and the HTTP API cannot grant it. No existing user is promoted automatically. To revoke it, a maintenance operator deletes that user's row in `platform_admins`; subsequent catalog requests recheck the role. Keep maintenance credentials outside the API process in deployment.
+
+All following endpoints require a live bearer session. `/admin/...` requires the platform-admin role; tenant owners receive `403` there.
+
+| Endpoint | Body / result |
+|---|---|
+| `POST /v1/admin/scenarios` | `{ id: UUID, definition }`; creates revision 1, returns `201 { id, revision, definition, updatedAt }` |
+| `GET /v1/admin/scenarios/:id` | Returns the current draft |
+| `PUT /v1/admin/scenarios/:id/draft` | `{ expectedRevision, definition }`; saves the next draft revision |
+| `POST /v1/admin/scenarios/:id/simulations` | `{ expectedRevision }`; returns `200 { scenarioId, revision, report }` without publishing, including reports where `valid` is false |
+| `POST /v1/admin/scenarios/:id/releases` | `{ expectedRevision }`; reruns validation/fixtures and returns an immutable release |
+| `GET /v1/admin/scenarios/:id/audit` | Paginated actor, action, revision, time and release test results |
+| `GET /v1/scenarios` | Paginated released-version summaries (`scenarioId`, `revision`, `name`, `description`, `createdAt`); no drafts |
+| `GET /v1/scenarios/:id/releases/:revision` | Full released `definition`, `validationReport`, `simulationReport`, revision and creation time |
+
+Use the [complete creation example](backend/examples/scenario.json), replacing its UUID when creating a different scenario. A definition contains a name (1–120 characters), matching description (1–1000), version 2 `workflow`, and 1–20 uniquely named fixtures. Each fixture supplies `event`, `expectedPath` and `expectedReason`. The simulator resolves actual bindings, runs the registered pure local adapters and records the actual path and terminal reason. Release requires a valid compiler report, matching fixture expectations, and traversal of every graph edge across the suite. A wrong trigger shape fails a fixture. No provider calls occur. The existing 64kb request limit still applies.
+
+Schema-valid drafts may contain compiler errors or failing fixtures so admins can repair them. Text unsupported by PostgreSQL (such as a NUL character), or a definition exceeding 64kb in PostgreSQL's normalized JSON representation, returns `422 INVALID_INPUT`. Simulation is bound to the returned revision but does not reserve it; editing invalidates that preview. A stale edit, simulation or new release returns `409 STALE_REVISION`. A failed release returns `422 SCENARIO_NOT_READY` with the simulation report in `error.details`; nothing is released. Preview reports include `valid`, `validationReport`, per-fixture `cases` (`name`, `passed`, actual `path`, `reason` and optional safe `error`), `uncoveredEdges` and schema-level `issues`.
+
+Creation is retryable with the same UUID and original definition: it returns `200` and the current resource, including after later edits. Reusing the UUID for another definition returns `409 SCENARIO_ID_REUSED`. Edits use optimistic revision checks; after an ambiguous response, GET the draft before deciding whether to retry. Releasing the same scenario/revision returns the original release (`200` on replay, `201` on creation), even after the draft advances. Releases use draft revision numbers, so version numbers can have gaps. Database row locks serialize edits/releases; release snapshots and audit records commit in one transaction. Later draft edits never modify an earlier snapshot. Runtime SQL grants prohibit modifying/deleting releases or audit history; platform-admin writes also have row policies. Privileged database maintenance remains a separate trust boundary.
+
+This is the backend catalog foundation for local capabilities. COD scenarios, prompt customization schemas, connector slots, release retirement, cloning and the React admin editor remain future work. Releasing a catalog scenario does not activate any tenant workflow.
+
 ## Next increments
 
-1. Admin scenario drafts, immutable releases and mocked COD fixtures.
-2. Persistent Builder revisions, simulation and exact-revision approval.
+1. Persistent Builder drafts pinned to a released scenario, simulation and exact-revision approval.
+2. COD capability contracts, scoped inference, connector adapters and provider-failure fixtures.
 3. Connection onboarding, publication and durable runtime, then React/Flutter client flows.
 
 WhatsApp and Sheets adapters, inference, order records and dashboards remain unimplemented. The architecture's release acceptance criteria still apply to those increments.

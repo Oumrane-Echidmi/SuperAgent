@@ -1,0 +1,32 @@
+{
+  "id": "31804d8d-721b-47d3-b373-c05d686b034f",
+  "definition": {
+    "name": "Text routing demo",
+    "description": "Routes an exact text match for local testing.",
+    "workflow": {
+      "schemaVersion": 2,
+      "nodes": [
+        { "id": "receive", "capability": { "name": "manual.text", "version": "1.0.0" }, "inputs": {} },
+        {
+          "id": "decision",
+          "capability": { "name": "text.equals", "version": "1.0.0" },
+          "inputs": {
+            "actual": { "kind": "output", "nodeId": "receive", "field": "text" },
+            "expected": { "kind": "literal", "value": "yes" }
+          }
+        },
+        { "id": "matched", "capability": { "name": "workflow.end", "version": "1.0.0" }, "inputs": { "reason": { "kind": "literal", "value": "Text matched" } } },
+        { "id": "unmatched", "capability": { "name": "workflow.end", "version": "1.0.0" }, "inputs": { "reason": { "kind": "literal", "value": "Text did not match" } } }
+      ],
+      "edges": [
+        { "from": "receive", "to": "decision", "route": "next" },
+        { "from": "decision", "to": "matched", "route": "match" },
+        { "from": "decision", "to": "unmatched", "route": "default" }
+      ]
+    },
+    "fixtures": [
+      { "name": "match", "event": { "text": "yes" }, "expectedPath": ["receive", "decision", "matched"], "expectedReason": "Text matched" },
+      { "name": "fallback", "event": { "text": "no" }, "expectedPath": ["receive", "decision", "unmatched"], "expectedReason": "Text did not match" }
+    ]
+  }
+}
