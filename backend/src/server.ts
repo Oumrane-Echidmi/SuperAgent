@@ -9,7 +9,7 @@ if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is required. Apply 
 const db = new Database(process.env.DATABASE_URL);
 try {
   await db.checkRuntimeRole();
-  await db.pool.query('SELECT 1 FROM sessions, platform_admins, scenarios, scenario_releases, scenario_audit LIMIT 0');
+  await db.pool.query('SELECT 1 FROM sessions, platform_admins, scenarios, scenario_releases, scenario_audit, builder_drafts, draft_revisions, draft_simulations, draft_approvals LIMIT 0');
 } catch {
   await db.pool.end();
   throw new Error('Database startup checks failed. Check runtime credentials and apply migrations.');

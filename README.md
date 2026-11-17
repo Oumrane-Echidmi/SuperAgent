@@ -118,10 +118,34 @@ Creation is retryable with the same UUID and original definition: it returns `20
 
 This is the backend catalog foundation for local capabilities. COD scenarios, prompt customization schemas, connector slots, release retirement, cloning and the React admin editor remain future work. Releasing a catalog scenario does not activate any tenant workflow.
 
+### Tenant Builder draft review
+
+Run `npm run db:migrate` after pulling to add the Builder tables; update the test database with `npm run db:setup:test --workspace backend`. The API now persists tenant setup drafts and revision-specific review evidence. Clients explicitly select an immutable catalog release. Automatic matching, setup chat, prompt generation and scenario customization are not implemented in this slice. The stored `name`, `goal` and `language` describe setup intent; they do not alter the pinned scenario graph or its fixtures.
+
+All endpoints below require a live bearer session and tenant membership. Staff can read; owners can create, edit, simulate and approve. Platform-admin catalog access does not bypass tenant membership. Another shop receives `404`. Draft IDs are scoped by tenant, so independent shops may safely use the same client UUID.
+
+| Endpoint | Request / result |
+|---|---|
+| `POST /v1/tenants/:tenantId/drafts` | [Creation example](backend/examples/builder-draft.json): `{ id, scenarioId, scenarioRevision, content: { name, goal, language } }`; `201` on creation, `200` on replay |
+| `GET /v1/tenants/:tenantId/drafts` | Paginated current draft summaries |
+| `GET /v1/tenants/:tenantId/drafts/:id` | Current setup, exact scenario definition, revision/hash, current simulation and current approval |
+| `PUT /v1/tenants/:tenantId/drafts/:id` | `{ expectedRevision, content }`; appends a new revision, returning the new review record |
+| `GET /v1/tenants/:tenantId/drafts/:id/revisions` | Paginated immutable content/hash history with actor and time, oldest first |
+| `POST /v1/tenants/:tenantId/drafts/:id/simulations` | `{ expectedRevision }`; persists the scenario's fixture report for this revision (`201`, or `200` on replay) |
+| `POST /v1/tenants/:tenantId/drafts/:id/approve` | `{ expectedRevision }`; records owner approval (`201`, or `200` on replay) |
+
+Use a released scenario ID/revision from `/v1/scenarios`; an unreleased or missing version returns `404`. Setup requires a nonblank name up to 120 characters, a nonblank goal up to 4000 characters, and `language` set to `darija` or `fr`. Graph, fixture, account and actor overrides are rejected. Creation retries must reuse the same tenant/UUID and original setup intent, including the pin; replay returns the current resource even after edits. Different creation intent with that UUID returns `409 DRAFT_ID_REUSED`. A new scenario selection requires a new draft.
+
+The current review response includes `id`, `tenantId`, `revision`, `content`, `scenarioId`, `scenarioRevision`, `scenarioDefinition`, `revisionHash`, `editedBy`, `updatedAt`, `simulatorVersion`, `simulation` and `approval`. An absent current simulation/approval is `null`. Each SHA-256 revision hash binds tenant, draft, revision, scenario pin and all setup fields in a fixed serialization order. Successful approval returns `{ tenantId, draftId, revision, simulatorVersion, revisionHash, approvedBy, approvedAt }`. Approval records evidence of review; it does not publish or activate anything.
+
+Approval requires a persisted passing simulation for exactly this revision and the current server-owned simulator version (`local-1.0.0`). The server reruns the pinned release fixtures before approving and compares the report with stored evidence. Missing evidence returns `409 SIMULATION_REQUIRED`, failed evidence returns `422 DRAFT_NOT_READY`, and changed results without a version bump return `409 SIMULATOR_CHANGED`. Simulation semantics changes require a simulator version bump; earlier evidence remains historical. Client-supplied reports or simulator versions are never accepted.
+
+Edits always append history and invalidate the current approval, including edits that repeat the same setup. Old revisions and approvals remain immutable in PostgreSQL. Stale edits/simulations/approvals return `409 STALE_REVISION`; after an ambiguous edit response, reload before retrying. Row locks serialize edits and approvals. The mutable head and immutable revision append commit together; a deferred foreign key prevents a head without its revision. New catalog releases do not upgrade existing pins. Runtime SQL cannot update/delete revision, simulation or approval history. The three PostgreSQL integration suites exercise tenant isolation, staff denial, repeated/concurrent operations, approval invalidation and transaction rollback.
+
 ## Next increments
 
-1. Persistent Builder drafts pinned to a released scenario, simulation and exact-revision approval.
-2. COD capability contracts, scoped inference, connector adapters and provider-failure fixtures.
+1. Scenario customization contracts, Builder matching and scoped inference.
+2. COD capabilities, connector adapters and provider-failure fixtures.
 3. Connection onboarding, publication and durable runtime, then React/Flutter client flows.
 
 WhatsApp and Sheets adapters, inference, order records and dashboards remain unimplemented. The architecture's release acceptance criteria still apply to those increments.
