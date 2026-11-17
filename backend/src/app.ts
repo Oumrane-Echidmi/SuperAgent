@@ -7,6 +7,7 @@ import { identityRoutes } from './identity-routes.ts';
 import { workflowRoutes } from './workflow-routes.ts';
 import { scenarioRoutes } from './scenario-routes.ts';
 import { builderRoutes } from './builder-routes.ts';
+import { matchingRoutes } from './matching-routes.ts';
 
 export function createApp(db?: Database) {
   const app = express();
@@ -22,6 +23,7 @@ export function createApp(db?: Database) {
   if (db) app.use('/v1', identityRoutes(db));
   if (db) app.use('/v1', scenarioRoutes(db));
   if (db) app.use('/v1', builderRoutes(db));
+  if (db) app.use('/v1', matchingRoutes(db));
   app.post('/v1/graph-validations', (req, res) => {
     const report = validateGraph(req.body);
     if (!report.valid) {

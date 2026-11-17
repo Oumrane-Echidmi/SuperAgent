@@ -16,3 +16,11 @@ test('review hashes bind tenant, draft, revision, scenario version and setup con
     { ...snapshot, content: { ...snapshot.content, language: 'fr' as const } },
   ]) assert.notEqual(revisionHash(changed), hash);
 });
+
+test('review hashes bind parameters in a canonical order while preserving legacy hashes', () => {
+  const snapshot = { tenantId: 't', draftId: 'd', revision: 1, scenarioId: 's', scenarioRevision: 1,
+    content: { name: 'Assistant', goal: 'Local demo', language: 'fr' as const } };
+  const changed = { ...snapshot, content: { ...snapshot.content, parameters: { first: 'one', second: 'two' } } };
+  assert.notEqual(revisionHash(changed), revisionHash(snapshot));
+  assert.equal(revisionHash(changed), revisionHash({ ...changed, content: { ...changed.content, parameters: { second: 'two', first: 'one' } } }));
+});

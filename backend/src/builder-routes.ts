@@ -5,7 +5,8 @@ import { z } from 'zod';
 import { Database, HttpError } from './database.ts';
 import { readBearerToken } from './auth.ts';
 import { appendRevision, approvalColumns, draftContentSchema, draftPaginationSchema, expectedRevisionSchema,
-  loadDraft, parseBuilder, requireRevision, requireTenant, reviewDraft, simulateDraft, SIMULATOR_VERSION } from './builder.ts';
+  loadDraft, parseBuilder, requireRevision, requireTenant, reviewDraft, simulateDraft, validateDraftContent, SIMULATOR_VERSION } from './builder.ts';
+import { resolveScenario } from './scenario-contracts.ts';
 
 const createSchema = z.strictObject({ id: z.uuid(), scenarioId: z.uuid(),
   scenarioRevision: expectedRevisionSchema.shape.expectedRevision, content: draftContentSchema });
@@ -25,8 +26,9 @@ export function builderRoutes(db: Database) {
   router.post(base, async (req, res) => {
     const result = await tenantRequest(req, true, async (client, tenantId, actor) => {
       const input = parseBuilder(createSchema, req.body);
-      const released = await client.query('SELECT 1 FROM scenario_releases WHERE scenario_id = $1 AND revision = $2', [input.scenarioId, input.scenarioRevision]);
+      const released = await client.query('SELECT definition FROM scenario_releases WHERE scenario_id = $1 AND revision = $2', [input.scenarioId, input.scenarioRevision]);
       if (!released.rowCount) throw new HttpError(404, 'NOT_FOUND', 'Released scenario not found.');
+      resolveScenario(released.rows[0].definition, input.content.parameters ?? {});
       const inserted = await client.query(`INSERT INTO builder_drafts(tenant_id, id, scenario_id, scenario_revision, initial_intent, created_by)
         VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT (tenant_id, id) DO NOTHING RETURNING id`, [tenantId, input.id, input.scenarioId, input.scenarioRevision, input, actor]);
       if (inserted.rowCount) {
@@ -59,6 +61,7 @@ export function builderRoutes(db: Database) {
       const input = parseBuilder(expectedRevisionSchema.extend({ content: draftContentSchema }), req.body);
       const draft = await loadDraft(client, tenantId, id, true);
       requireRevision(draft, input.expectedRevision);
+      await validateDraftContent(client, draft, input.content);
       await client.query('UPDATE builder_drafts SET current_revision = current_revision + 1, updated_at = now() WHERE tenant_id = $1 AND id = $2', [tenantId, id]);
       await appendRevision(client, { ...draft, revision: draft.revision + 1, content: input.content }, actor);
       return reviewDraft(client, await loadDraft(client, tenantId, id));

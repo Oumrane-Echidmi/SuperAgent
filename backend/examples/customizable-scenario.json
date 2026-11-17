@@ -1,0 +1,29 @@
+{
+  "id": "8749242d-e9c9-446b-a79f-4f1d3ace51e8",
+  "definition": {
+    "name": "Customizable text routing",
+    "description": "A local text routing demo with a selectable terminal reason.",
+    "matching": { "phrases": ["trier les messages", "نظم رسائل المتجر"], "languages": ["fr", "darija"] },
+    "parameters": [
+      { "key": "matchedReason", "label": "Matched terminal reason", "nodeId": "matched", "input": "reason", "values": ["Merci", "شكرا"] }
+    ],
+    "workflow": {
+      "schemaVersion": 2,
+      "nodes": [
+        { "id": "receive", "capability": { "name": "manual.text", "version": "1.0.0" }, "inputs": {} },
+        { "id": "decision", "capability": { "name": "text.equals", "version": "1.0.0" }, "inputs": { "actual": { "kind": "output", "nodeId": "receive", "field": "text" }, "expected": { "kind": "literal", "value": "yes" } } },
+        { "id": "matched", "capability": { "name": "workflow.end", "version": "1.0.0" }, "inputs": { "reason": { "kind": "literal", "value": "Merci" } } },
+        { "id": "unmatched", "capability": { "name": "workflow.end", "version": "1.0.0" }, "inputs": { "reason": { "kind": "literal", "value": "Text did not match" } } }
+      ],
+      "edges": [
+        { "from": "receive", "to": "decision", "route": "next" },
+        { "from": "decision", "to": "matched", "route": "match" },
+        { "from": "decision", "to": "unmatched", "route": "default" }
+      ]
+    },
+    "fixtures": [
+      { "name": "match", "event": { "text": "yes" }, "expectedPath": ["receive", "decision", "matched"], "expectedReason": { "parameter": "matchedReason" } },
+      { "name": "fallback", "event": { "text": "no" }, "expectedPath": ["receive", "decision", "unmatched"], "expectedReason": "Text did not match" }
+    ]
+  }
+}

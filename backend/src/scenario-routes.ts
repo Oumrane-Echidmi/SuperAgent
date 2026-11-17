@@ -3,13 +3,8 @@ import { z } from 'zod';
 import type { PoolClient } from 'pg';
 import { Database, HttpError } from './database.ts';
 import { readBearerToken } from './auth.ts';
-import { workflowSchema } from './workflow-compiler.ts';
-import { fixtureSchema, simulateWorkflow } from './simulator.ts';
+import { scenarioDefinitionSchema as definitionSchema, simulateScenario } from './scenario-contracts.ts';
 
-const definitionSchema = z.strictObject({
-  name: z.string().trim().min(1).max(120), description: z.string().trim().min(1).max(1000),
-  workflow: workflowSchema, fixtures: z.array(fixtureSchema).min(1).max(20),
-});
 const revision = z.number().int().min(1).max(2147483646);
 const expected = z.strictObject({ expectedRevision: revision });
 const pagination = z.strictObject({ page: z.coerce.number().int().min(1).max(1_000_000).default(1), pageSize: z.coerce.number().int().min(1).max(100).default(50) });
@@ -71,7 +66,7 @@ export function scenarioRoutes(db: Database) {
       const existing = await client.query(`SELECT ${releaseColumns} FROM scenario_releases WHERE scenario_id = $1 AND revision = $2`, [id, input.expectedRevision]);
       if (existing.rowCount) return { created: false, row: existing.rows[0] };
       if (current.revision !== input.expectedRevision) throw new HttpError(409, 'STALE_REVISION', 'Release the current draft revision.');
-      const report = simulateWorkflow({ workflow: current.definition.workflow, fixtures: current.definition.fixtures });
+      const report = simulateScenario(current.definition);
       if (!report.valid) throw new HttpError(422, 'SCENARIO_NOT_READY', 'Compiler, fixtures and branch coverage must pass before release.', report);
       const released = await client.query(`INSERT INTO scenario_releases(scenario_id, revision, definition, validation_report, simulation_report, created_by)
         VALUES ($1, $2, $3, $4, $5, $6) RETURNING ${releaseColumns}`, [id, current.revision, current.definition, report.validationReport, report, actor]);
@@ -87,7 +82,7 @@ export function scenarioRoutes(db: Database) {
       const current = await readDraft(client, id);
       if (current.revision !== input.expectedRevision) throw new HttpError(409, 'STALE_REVISION', 'Simulate the current draft revision.');
       return { scenarioId: id, revision: current.revision,
-        report: simulateWorkflow({ workflow: current.definition.workflow, fixtures: current.definition.fixtures }) };
+        report: simulateScenario(current.definition) };
     });
     res.json(result);
   });

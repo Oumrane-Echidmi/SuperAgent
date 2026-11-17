@@ -3,11 +3,12 @@ import type { PoolClient } from 'pg';
 import { z } from 'zod';
 import { HttpError } from './database.ts';
 import { simulateWorkflow } from './simulator.ts';
+import { parameterValuesSchema, resolveScenario } from './scenario-contracts.ts';
 
 // Bump when simulation semantics change; old reports/approvals remain historical evidence.
-export const SIMULATOR_VERSION = 'local-1.0.0';
+export const SIMULATOR_VERSION = 'local-1.1.0';
 export const draftContentSchema = z.strictObject({ name: z.string().trim().min(1).max(120),
-  goal: z.string().trim().min(1).max(4000), language: z.enum(['darija', 'fr']) });
+  goal: z.string().trim().min(1).max(4000), language: z.enum(['darija', 'fr']), parameters: parameterValuesSchema.optional() });
 export const expectedRevisionSchema = z.strictObject({ expectedRevision: z.number().int().min(1).max(2147483646) });
 export const draftPaginationSchema = z.strictObject({ page: z.coerce.number().int().min(1).max(1_000_000).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(50) });
@@ -23,7 +24,8 @@ interface Snapshot {
 export function revisionHash(snapshot: Snapshot): string {
   const { tenantId, draftId, revision, scenarioId, scenarioRevision, content } = snapshot;
   return createHash('sha256').update(JSON.stringify({ tenantId, draftId, revision, scenarioId, scenarioRevision,
-    content: { name: content.name, goal: content.goal, language: content.language } })).digest('hex');
+    content: { name: content.name, goal: content.goal, language: content.language,
+      ...(content.parameters === undefined ? {} : { parameters: Object.fromEntries(Object.entries(content.parameters).sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0)) }) } })).digest('hex');
 }
 export interface DraftRecord {
   id: string; tenantId: string; revision: number; scenarioId: string; scenarioRevision: number;
@@ -60,12 +62,19 @@ export async function reviewDraft(client: PoolClient, draft: DraftRecord) {
   const approval = await client.query(`SELECT ${approvalColumns} FROM draft_approvals WHERE tenant_id = $1 AND draft_id = $2 AND revision = $3 AND simulator_version = $4`, keys);
   const simulation = await client.query('SELECT report FROM draft_simulations WHERE tenant_id = $1 AND draft_id = $2 AND revision = $3 AND simulator_version = $4', keys);
   const scenario = await client.query('SELECT definition FROM scenario_releases WHERE scenario_id = $1 AND revision = $2', [draft.scenarioId, draft.scenarioRevision]);
+  const resolved = resolveScenario(scenario.rows[0].definition, draft.content.parameters ?? {});
   return { ...draft, scenarioDefinition: scenario.rows[0].definition, simulatorVersion: SIMULATOR_VERSION,
+    effectiveWorkflow: resolved.workflow, effectiveFixtures: resolved.fixtures, effectiveParameters: resolved.parameters,
     simulation: simulation.rows[0]?.report ?? null, approval: approval.rows[0] ?? null };
 }
 export async function simulateDraft(client: PoolClient, draft: DraftRecord) {
   const release = await client.query('SELECT definition FROM scenario_releases WHERE scenario_id = $1 AND revision = $2', [draft.scenarioId, draft.scenarioRevision]);
-  return simulateWorkflow({ workflow: release.rows[0].definition.workflow, fixtures: release.rows[0].definition.fixtures });
+  const resolved = resolveScenario(release.rows[0].definition, draft.content.parameters ?? {});
+  return simulateWorkflow({ workflow: resolved.workflow, fixtures: resolved.fixtures });
+}
+export async function validateDraftContent(client: PoolClient, draft: DraftRecord, content: z.infer<typeof draftContentSchema>) {
+  const release = await client.query('SELECT definition FROM scenario_releases WHERE scenario_id = $1 AND revision = $2', [draft.scenarioId, draft.scenarioRevision]);
+  resolveScenario(release.rows[0].definition, content.parameters ?? {});
 }
 export function requireRevision(draft: DraftRecord, expected: number) {
   if (draft.revision !== expected) throw new HttpError(409, 'STALE_REVISION', 'Reload the current draft revision.');

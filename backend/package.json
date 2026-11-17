@@ -13,7 +13,8 @@
     "db:cleanup": "node --env-file=.env --experimental-strip-types scripts/cleanup.ts",
     "db:setup:test": "node --env-file=.env.test --experimental-strip-types scripts/create-test-db.ts && node --env-file=.env.test --experimental-strip-types scripts/migrate.ts",
     "test:integration": "node --env-file=.env.test --experimental-strip-types --test --test-concurrency=1 tests/*.integration.ts",
-    "admin:grant": "node --env-file=.env --experimental-strip-types scripts/grant-admin.ts"
+    "admin:grant": "node --env-file=.env --experimental-strip-types scripts/grant-admin.ts",
+    "db:cleanup:builder": "node --env-file=.env --experimental-strip-types scripts/cleanup-builder-requests.ts"
   },
   "dependencies": {
     "express": "^5.3.0",
