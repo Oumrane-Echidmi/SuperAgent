@@ -5,6 +5,8 @@ import { GoogleFailure } from './google-sheets.ts';
 import type { GoogleSheetsProvider, SpreadsheetInspection } from './google-sheets.ts';
 import type { GoogleConnectionConfig } from './google-oauth.ts';
 import { GOOGLE_FILE_SCOPE } from './google-oauth.ts';
+import { ownerSheetExecution } from './sheet-execution.ts';
+import type { SheetExecution } from './sheet-execution.ts';
 
 export type GoogleSheetsAccess = Pick<GoogleSheetsProvider, 'refresh' | 'inspect'>;
 export async function requireGoogleOwner(client: PoolClient, tenantId: string) {
@@ -20,11 +22,11 @@ export interface GoogleConnectionUse {
   transaction<T>(work: (client: PoolClient, userId: string) => Promise<T>): Promise<T>;
 }
 /** SQL-only callbacks for transaction; provider HTTP must run outside them. */
-export async function useGoogleConnection<T>(db: Database, config: GoogleConnectionConfig, provider: GoogleSheetsAccess,
-  bearer: string, tenantId: string, connectionId: string, spreadsheetId: string,
+export async function useGoogleConnectionForActor<T>(actor:SheetExecution, config: GoogleConnectionConfig, provider: GoogleSheetsAccess,
+  tenantId: string, connectionId: string, spreadsheetId: string,
   work: (use: GoogleConnectionUse) => Promise<T>): Promise<T> {
   const lease = randomUUID();
-  const secret = await db.authenticated(bearer, async client => {
+  const secret = await actor.transaction(async client => {
     await requireGoogleOwner(client, tenantId);
     const row = await client.query(`SELECT status,credential_envelope,scopes,oauth_client_id,access_lease_until>clock_timestamp() AS busy,
       inspection_count,inspection_window<=clock_timestamp()-interval '15 minutes' AS reset FROM google_connections WHERE tenant_id=$1 AND id=$2 FOR UPDATE`, [tenantId, connectionId]);
@@ -54,7 +56,7 @@ export async function useGoogleConnection<T>(db: Database, config: GoogleConnect
       throw new HttpError(502, 'GOOGLE_CHECK_FAILED', 'Google could not check this spreadsheet. Try again later.');
     }
     // Recheck after refresh and persist a rotated credential before any subsequent read can fail.
-    await db.authenticated(bearer, async client => {
+    await actor.transaction(async client => {
       await requireLease(client);
       if (access.refreshToken) {
         const envelope = config.vault.seal(access.refreshToken, { tenantId, connectionId, provider: 'google' });
@@ -70,11 +72,14 @@ export async function useGoogleConnection<T>(db: Database, config: GoogleConnect
       throw new HttpError(502, 'GOOGLE_CHECK_FAILED', 'Google could not check this spreadsheet. Try again later.');
     }
     return await work({ accessToken: access.accessToken, inspection,
-      transaction: callback => db.authenticated(bearer, async (client, userId) => { await requireLease(client); return callback(client, userId); }) });
+      transaction: callback => actor.transaction(async (client, userId) => { await requireLease(client); return callback(client, userId); }) });
   } finally {
     // A revoked session/ownership can prevent cleanup; the bounded lease then expires naturally.
-    await db.authenticated(bearer, client => client.query('UPDATE google_connections SET access_lease_id=NULL,access_lease_until=NULL WHERE tenant_id=$1 AND id=$2 AND access_lease_id=$3', [tenantId, connectionId, lease])).catch(() => {});
+    await actor.transaction(client => client.query('UPDATE google_connections SET access_lease_id=NULL,access_lease_until=NULL WHERE tenant_id=$1 AND id=$2 AND access_lease_id=$3', [tenantId, connectionId, lease])).catch(() => {});
   }
+}
+export async function useGoogleConnection<T>(db:Database,config:GoogleConnectionConfig,provider:GoogleSheetsAccess,bearer:string,tenantId:string,connectionId:string,spreadsheetId:string,work:(use:GoogleConnectionUse)=>Promise<T>):Promise<T> {
+  return useGoogleConnectionForActor(ownerSheetExecution(db,bearer),config,provider,tenantId,connectionId,spreadsheetId,work);
 }
 export async function inspectGoogleConnection<T>(db: Database, config: GoogleConnectionConfig, provider: GoogleSheetsAccess,
   bearer: string, tenantId: string, connectionId: string, spreadsheetId: string,

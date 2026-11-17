@@ -10,7 +10,8 @@
     "test": "npm run test --workspace backend",
     "test:integration": "npm run test:integration --workspace backend",
     "db:migrate": "npm run db:migrate --workspace backend",
-    "worker:builder": "npm run worker:builder --workspace backend"
+    "worker:builder": "npm run worker:builder --workspace backend",
+    "worker:sheets": "npm run worker:sheets --workspace backend"
   },
   "engines": { "node": ">=24" }
 }

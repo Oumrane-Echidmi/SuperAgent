@@ -236,7 +236,7 @@ Recipient, phone, address, staff evidence and historical summaries are tenant bu
 
 Append success requires matching spreadsheet ID, one updated row, exact cell/column counts and a matching returned tab/range. Transport errors, server errors, malformed responses and cancellation after dispatch produce `OUTCOME_UNKNOWN`. There are no automatic retries. The eventual delivery worker must persist the operation and dispatch attempt first, bind an owner-authorized destination, include the stable order ID in the row, and reconcile uncertain writes before another append. Even valid returned range evidence is not an exactly-once guarantee and can later be edited by a spreadsheet user. Authorization failure, rate limiting and rejected requests have separate safe error codes; provider response bodies are never exposed in errors.
 
-Provider protocol tests use mocked requests only. Immutable COD intent records retain AWAITING_CONNECTION; separate delivery records track owner-triggered dispatch and read-only reconciliation. Destination binding alone does not activate delivery. A background worker remains to be implemented. No additional dependencies are required to run the existing server.
+Provider protocol tests use mocked requests only. Immutable COD intent records retain AWAITING_CONNECTION; separate delivery records track dispatch and read-only reconciliation. Destination binding alone does not activate delivery. Owners can explicitly dispatch or authorize a background job as described below. No additional dependencies are required to run the existing server.
 
 ## Google account connection API
 
@@ -287,7 +287,7 @@ Destination metadata persists until privileged tenant deletion, including discon
 
 ## Durable owner-triggered Sheets delivery
 
-Apply migration 010. New external writes require both enabled Google configuration and the separate `SHEETS_DELIVERY_ENABLED=true` flag (default false). This increment supplies synchronous owner-triggered delivery backed by a durable PostgreSQL ledger. It does not start a background worker, publish a workflow or automatically deliver newly confirmed orders. Tests use mocked transport and make no live Google writes.
+Apply migration 010. New external writes require both enabled Google configuration and the separate `SHEETS_DELIVERY_ENABLED=true` flag (default false). Synchronous owner-triggered delivery uses a durable PostgreSQL ledger. A separate opt-in worker can process explicitly queued jobs below; recording a new order does not automatically authorize delivery or publish a workflow. Tests use mocked transport and make no live Google writes.
 
 | Endpoint under `/v1/tenants/:tenantId/orders/:orderId/sheet-delivery` | Request / result |
 |---|---|
@@ -316,9 +316,30 @@ Disconnect prevents checks that have not crossed dispatch authorization, but can
 
 Order detail responses now expose `sheetSync.delivery`; order lists add `sheetDeliveryStatus` (UNBOUND before binding). The original `sheetSync.status` / `sheetSyncStatus` values describe the immutable legacy intent and remain AWAITING_CONNECTION for compatibility; use the separate delivery state for progress. Dashboard `sheetSyncWaiting` excludes SUCCEEDED deliveries and retains blocked/uncertain/unbound intents. These outcomes do not imply delivery of goods or cash collection. Ledger row previews contain customer data already present on the order and share its tenant-deletion lifecycle. Local deletion does not remove remote sheet projections; production export, retention, backups and provider deletion still need explicit policies.
 
+## Background Sheets delivery jobs
+
+Apply migrations through 012, then provision `SHEETS_WORKER_DATABASE_PASSWORD` (a separate random password of at least 24 characters) by rerunning migrations. Configure `SHEETS_WORKER_DATABASE_URL` to use the dedicated `superagent_sheet_worker` login, the same Google client/vault configuration as the API, and all three opt-in flags: `GOOGLE_CONNECTIONS_ENABLED=true`, `SHEETS_DELIVERY_ENABLED=true`, `SHEETS_WORKER_ENABLED=true`. Start the separate process with `npm run worker:sheets`. The worker role starts NOLOGIN until provisioned; application and Builder logins are rejected by worker startup. Use separate deployment environments containing only each process's required secrets, and keep migration credentials out of deployed API/worker environments.
+
+| Endpoint under `/v1/tenants/:tenantId/orders/:orderId/sheet-delivery/jobs` | Request / result |
+|---|---|
+| `POST /` | [Job example](backend/examples/sheet-job.json): `{ id }` explicitly authorizes background dispatch of the pinned, reviewed delivery |
+| `GET /` | Owner-only job history (`limit` 1–100, default 20; `offset` 0–10000) |
+| `GET /:id` | Safe job state, requesting owner, claim count, next eligible time and safe outcome metadata |
+| `DELETE /:id` | Cancels queued work or the job's own preparation before dispatch; a dispatched running job returns `409 SHEET_JOB_ALREADY_DISPATCHED` |
+
+Queueing requires an owner session, enabled delivery, a connected pinned destination and an undispatched READY/BLOCKED delivery. Existing bindings/READY records are **not** automatically swept into the queue. An identical job UUID/order retry replays the retained result, including after completion; reusing the UUID for another order returns `409 SHEET_JOB_ID_REUSED`. Only one QUEUED/RUNNING job per order is permitted. Job authorizations retain their original order, destination, connection and requesting actor. A terminal failed job needs a new explicit job UUID after the underlying preflight issue is fixed. Jobs for uncertain or already dispatched deliveries cannot be created.
+
+Workers claim jobs with [SKIP LOCKED](https://www.postgresql.org/docs/18/sql-select.html), a random fence and a 180-second lease. Claim selection serializes each connection across worker processes; manual connection use also participates in the existing connection lease. Busy connections defer jobs for two seconds; local quota exhaustion defers them for fifteen minutes. These controlled deferrals preserve the processing-claim budget and expose `availableAt`. Other preflight/provider failures stop BLOCKED. Up to three processing claims permit recovery from crashes before dispatch. Recovery observes existing ledger evidence first: an already completed delivery completes the job, and any possibly dispatched operation stops UNKNOWN without another append. UNKNOWN recovery remains owner-triggered and read-only through the existing reconciliation endpoint.
+
+States are QUEUED, RUNNING, SUCCEEDED, BLOCKED, UNKNOWN and CANCELLED. The worker rechecks the original requesting user's current owner membership in every transaction, including before effects. Revoked ownership prevents further data access and dispatch. Cancellation invalidates the claimed context immediately; it clears only that job's correlated preparation, leaving an independent manual request alone. An already authorized/in-flight Google request cannot be recalled. Cancelling or losing a worker context may leave a connection lease until its 120-second expiry. Late workers cannot complete cancelled/reclaimed jobs or restart dispatched ledger attempts. A job's UNKNOWN outcome remains historical even if a later manual reconciliation proves the delivery succeeded; consult the separate delivery ledger for the latest evidence.
+
+The worker shares the existing delivery engine rather than copying append/recovery logic. It has no grants on sessions, users, orders, chat or unconfirmed intent tables, cannot create jobs, cannot change job authorizations, and cannot read OAuth state/verifiers. Scoped [row policies](https://www.postgresql.org/docs/18/ddl-rowsecurity.html) expose only the claimed job's delivery, destination and credential while its lease is valid and its requester remains an owner. Queue metadata is readable across tenants for scheduling; payload and credential access is job-scoped. Transaction-local context is reset by PostgreSQL on completion. Direct SQL access to a worker login is still trusted service access and can process valid owner-authorized jobs; protect the login and vault keys accordingly.
+
+The worker polls once per second when idle and drains its current bounded operation on SIGINT/SIGTERM before closing the pool. To pause all background processing, stop worker processes; changing flags requires restarting the relevant process. Disabling the API flag stops new jobs/manual dispatch but does not dynamically reconfigure an already running worker. Cancellation/disconnect remain the per-job/connection controls before dispatch. Existing fixed-schema, 1,000-row/64 KiB read limits and conservative single-append policy remain in force. Job metadata cascades with tenant/delivery deletion; configure production retention and backups separately. Integration tests use synthetic shops, a dedicated worker login and mocked Google requests; no live provider writes are performed.
+
 ## Next increments
 
-1. Background delivery worker, paginated reconciliation and controlled operator recovery; callback and file picker client flows.
+1. Connect the existing frontend to the available APIs; paginated reconciliation and controlled operator recovery; callback and file picker client flows.
 2. Verified WhatsApp intake.
 3. Registered COD scenario actions, publication and durable runtime, then React/Flutter client flows.
 

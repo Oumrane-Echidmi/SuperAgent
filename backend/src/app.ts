@@ -17,6 +17,7 @@ import { sheetDestinationRoutes } from './sheet-destination-routes.ts';
 import type { GoogleSheetsAccess } from './google-access.ts';
 import { sheetDeliveryRoutes } from './sheet-delivery-routes.ts';
 import type { GoogleDeliveryProvider } from './sheet-delivery.ts';
+import { sheetJobRoutes } from './sheet-job-routes.ts';
 
 export function createApp(db?: Database, options: { builderAiEnabled?: boolean; google?: GoogleConnectionConfig; googleOAuth?: GoogleOAuth; googleSheets?: GoogleSheetsAccess; sheetDeliveryEnabled?: boolean; googleDelivery?: GoogleDeliveryProvider } = {}) {
   const app = express();
@@ -39,6 +40,7 @@ export function createApp(db?: Database, options: { builderAiEnabled?: boolean; 
   if (db) app.use('/v1', googleConnectionRoutes(db, options.google, options.googleOAuth));
   if (db) app.use('/v1', sheetDestinationRoutes(db, options.google, options.googleSheets));
   if (db) app.use('/v1', sheetDeliveryRoutes(db, options.sheetDeliveryEnabled??false, options.google, options.googleDelivery));
+  if (db) app.use('/v1', sheetJobRoutes(db,(options.sheetDeliveryEnabled??false)&&Boolean(options.google)));
   app.post('/v1/graph-validations', (req, res) => {
     const report = validateGraph(req.body);
     if (!report.valid) {

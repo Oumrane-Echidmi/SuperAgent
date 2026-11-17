@@ -17,6 +17,7 @@
     "db:cleanup:builder": "node --env-file=.env --experimental-strip-types scripts/cleanup-builder-requests.ts",
     "db:cleanup:chat": "node --env-file=.env --experimental-strip-types scripts/cleanup-builder-chat.ts",
     "worker:builder": "node --env-file=.env --experimental-strip-types src/builder-worker.ts",
+    "worker:sheets": "node --env-file=.env --experimental-strip-types src/sheet-worker.ts",
     "db:cleanup:google": "node --env-file=.env --experimental-strip-types scripts/cleanup-google-connections.ts"
   },
   "dependencies": {

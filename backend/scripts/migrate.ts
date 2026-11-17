@@ -28,6 +28,10 @@ try {
     if (process.env.BUILDER_WORKER_DATABASE_PASSWORD.length < 24) throw new Error('Use a worker database password of at least 24 characters.');
     await client.query(`ALTER ROLE superagent_builder_worker LOGIN PASSWORD ${pg.escapeLiteral(process.env.BUILDER_WORKER_DATABASE_PASSWORD)}`);
   }
+  if(process.env.SHEETS_WORKER_DATABASE_PASSWORD){
+    if(process.env.SHEETS_WORKER_DATABASE_PASSWORD.length<24)throw new Error('Use a Sheets worker database password of at least 24 characters.');
+    await client.query(`ALTER ROLE superagent_sheet_worker LOGIN PASSWORD ${pg.escapeLiteral(process.env.SHEETS_WORKER_DATABASE_PASSWORD)}`);
+  }
   await client.query('COMMIT');
   console.log('Database migrations applied.');
 } catch (error) {

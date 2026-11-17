@@ -1,7 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import type { PoolClient } from 'pg';
 import { Database, HttpError } from './database.ts';
-import { requireGoogleOwner, useGoogleConnection } from './google-access.ts';
+import { requireGoogleOwner, useGoogleConnectionForActor } from './google-access.ts';
+import { ownerSheetExecution } from './sheet-execution.ts';
+import type { SheetExecution } from './sheet-execution.ts';
 import type { GoogleConnectionConfig } from './google-oauth.ts';
 import type { GoogleSheetsProvider, SpreadsheetInspection } from './google-sheets.ts';
 import { codRowRange, inspectCodRows } from './sheet-delivery-contract.ts';
@@ -39,8 +41,8 @@ async function succeeded(client:PoolClient,tid:string,id:string,attempt:string,r
   if(!updated.rowCount) throw stale();
   return sheetDeliveryView(await loadSheetDelivery(client,tid,id));
 }
-export async function runSheetDelivery(db:Database,config:GoogleConnectionConfig,provider:GoogleDeliveryProvider,bearer:string,tid:string,id:string,reconcile=false) {
-  const claim=await db.authenticated(bearer,async(client,userId)=>{
+export async function runSheetDeliveryForActor(actor:SheetExecution,config:GoogleConnectionConfig,provider:GoogleDeliveryProvider,tid:string,id:string,reconcile=false,attemptId?:string) {
+  const claim=await actor.transaction(async(client,userId)=>{
     await requireGoogleOwner(client,tid); const row=await loadSheetDelivery(client,tid,id,true); const view=sheetDeliveryView(row);
     if(view.status==='SUCCEEDED') return {done:view};
     if(reconcile) {
@@ -49,7 +51,7 @@ export async function runSheetDelivery(db:Database,config:GoogleConnectionConfig
     } else {
       if(view.status==='UNKNOWN') throw unknown();
       if(['DISPATCHED','PREPARING'].includes(view.status)) throw new HttpError(409,'SHEET_DELIVERY_BUSY','A delivery attempt is already in progress.');
-      const attempt=randomUUID();
+      const attempt=attemptId??randomUUID();
       await client.query(`UPDATE sheet_deliveries SET status='PREPARING',attempt_id=$3,attempt_by=$4,lease_until=clock_timestamp()+interval '120 seconds',error_code=NULL,updated_at=clock_timestamp()
         WHERE tenant_id=$1 AND order_id=$2`,[tid,id,attempt,userId]);
       row.attempt_id=attempt;
@@ -61,7 +63,7 @@ export async function runSheetDelivery(db:Database,config:GoogleConnectionConfig
   if('done' in claim) return claim.done;
   const {row,destination}=claim; let sent=false;
   try {
-    return await useGoogleConnection(db,config,provider,bearer,tid,destination.connection_id,destination.spreadsheet_id,async use=>{
+    return await useGoogleConnectionForActor(actor,config,provider,tid,destination.connection_id,destination.spreadsheet_id,async use=>{
       const tab=targetTab(use.inspection,destination.sheet_id); const target={spreadsheetId:destination.spreadsheet_id,tab:tab.title};
       const rows=await provider.readRows(use.accessToken,target,tab.rowCount);
       let observed:ReturnType<typeof inspectCodRows>;
@@ -90,14 +92,14 @@ export async function runSheetDelivery(db:Database,config:GoogleConnectionConfig
       });
       sent=true; const receipt=await provider.append(use.accessToken,target,row.expected_row);
       // A known acknowledgement is durable evidence even if local disconnect followed dispatch.
-      return db.authenticated(bearer,async client=>{
+      return actor.transaction(async client=>{
         await requireGoogleOwner(client,tid); await requireAttempt(client,tid,id,row.attempt_id!,'DISPATCHED');
         return succeeded(client,tid,id,row.attempt_id!,receipt.updatedRange,'APPEND_ACK');
       });
     });
   } catch(error) {
     const code=error instanceof HttpError?error.code:'SHEET_CHECK_FAILED';
-    await db.authenticated(bearer,async client=>{
+    await actor.transaction(async client=>{
       await requireGoogleOwner(client,tid);
       if(sent) await client.query("UPDATE sheet_deliveries SET status='UNKNOWN',lease_until=NULL,error_code='SHEET_OUTCOME_UNKNOWN',updated_at=clock_timestamp() WHERE tenant_id=$1 AND order_id=$2 AND attempt_id=$3 AND status='DISPATCHED'",[tid,id,row.attempt_id]);
       else if(!reconcile) await client.query("UPDATE sheet_deliveries SET status='BLOCKED',lease_until=NULL,error_code=$4,updated_at=clock_timestamp() WHERE tenant_id=$1 AND order_id=$2 AND attempt_id=$3 AND status='PREPARING'",[tid,id,row.attempt_id,code]);
@@ -106,4 +108,7 @@ export async function runSheetDelivery(db:Database,config:GoogleConnectionConfig
     if(error instanceof HttpError) throw error;
     throw new HttpError(502,'SHEET_CHECK_FAILED','The sheet could not be checked. No new append was dispatched.');
   }
+}
+export async function runSheetDelivery(db:Database,config:GoogleConnectionConfig,provider:GoogleDeliveryProvider,bearer:string,tid:string,id:string,reconcile=false) {
+  return runSheetDeliveryForActor(ownerSheetExecution(db,bearer),config,provider,tid,id,reconcile);
 }
