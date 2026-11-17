@@ -25,6 +25,17 @@ npm run build
 npm start --workspace backend
 ```
 
+## Connected frontend
+
+With the API running, use a second terminal:
+
+```sh
+npm --prefix frontend ci --ignore-scripts
+npm --prefix frontend run dev
+```
+
+Open `http://127.0.0.1:4173` to register/sign in, select your business, save its profile, record/review COD orders and view live outcomes. Confirmed orders can use existing configured sheet destinations and explicit delivery jobs. Tokens stay in memory, so refreshing requires signing in again. Other workspace screens remain clearly labelled examples. See [frontend/README.md](frontend/README.md) for supported routes, tests, proxy requirements and the known unpatched development-tool advisory.
+
 ## Backend capabilities
 
 Express 5 / TypeScript backend with PostgreSQL tenant identity, business profiles and stateless structural graph validation. The API and local database bind to loopback. The runtime refuses privileged database credentials; migrations use a separate administrative connection. `GET /healthz` checks process liveness, not database readiness.
@@ -339,7 +350,7 @@ The worker polls once per second when idle and drains its current bounded operat
 
 ## Next increments
 
-1. Connect the existing frontend to the available APIs; paginated reconciliation and controlled operator recovery; callback and file picker client flows.
+1. Connect remaining Builder/catalog and Google callback/file picker screens; paginated reconciliation and controlled operator recovery.
 2. Verified WhatsApp intake.
 3. Registered COD scenario actions, publication and durable runtime, then React/Flutter client flows.
 
