@@ -3,6 +3,7 @@ import type { ErrorRequestHandler } from 'express';
 import { validateGraph } from './compiler.ts';
 import { Database, HttpError } from './database.ts';
 import { identityRoutes } from './identity-routes.ts';
+import { workflowRoutes } from './workflow-routes.ts';
 
 export function createApp(db?: Database) {
   const app = express();
@@ -14,6 +15,7 @@ export function createApp(db?: Database) {
   });
   app.use(express.json({ limit: '64kb', inflate: false }));
   app.get('/healthz', (_req, res) => { res.json({ status: 'ok' }); });
+  app.use('/v1', workflowRoutes());
   if (db) app.use('/v1', identityRoutes(db));
   app.post('/v1/graph-validations', (req, res) => {
     const report = validateGraph(req.body);

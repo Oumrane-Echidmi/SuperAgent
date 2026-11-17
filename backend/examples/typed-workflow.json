@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 2,
+  "nodes": [
+    { "id": "receive", "capability": { "name": "manual.text", "version": "1.0.0" }, "inputs": {} },
+    {
+      "id": "decision",
+      "capability": { "name": "text.equals", "version": "1.0.0" },
+      "inputs": {
+        "actual": { "kind": "output", "nodeId": "receive", "field": "text" },
+        "expected": { "kind": "literal", "value": "yes" }
+      }
+    },
+    {
+      "id": "matched",
+      "capability": { "name": "workflow.end", "version": "1.0.0" },
+      "inputs": { "reason": { "kind": "literal", "value": "Text matched" } }
+    },
+    {
+      "id": "unmatched",
+      "capability": { "name": "workflow.end", "version": "1.0.0" },
+      "inputs": { "reason": { "kind": "literal", "value": "Text did not match" } }
+    }
+  ],
+  "edges": [
+    { "from": "receive", "to": "decision", "route": "next" },
+    { "from": "decision", "to": "matched", "route": "match" },
+    { "from": "decision", "to": "unmatched", "route": "default" }
+  ]
+}

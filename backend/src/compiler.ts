@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { NodeFamily } from './capabilities.ts';
 
 const id = z.string().regex(/^[a-zA-Z][a-zA-Z0-9_-]{0,63}$/);
 export const graphSchema = z.strictObject({
@@ -33,7 +34,14 @@ export function validateGraph(input: unknown): ValidationReport {
       code: 'INVALID_SCHEMA', message: `${issue.path.join('.') || 'graph'}: ${issue.message}`,
     })) };
   }
-  const { nodes, edges } = parsed.data;
+  const issues = validateTopology(parsed.data);
+  return { stage: 'structure', valid: issues.length === 0, issues };
+}
+
+export function validateTopology({ nodes, edges }: {
+  nodes: { id: string; type: NodeFamily }[];
+  edges: { from: string; to: string; route: string }[];
+}): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
   const add = (code: string, message: string, nodeId?: string) => {
     issues.push({ code, message, ...(nodeId === undefined ? {} : { nodeId }) });
@@ -46,7 +54,7 @@ export function validateGraph(input: unknown): ValidationReport {
     if (seen.has(node.id)) add('DUPLICATE_NODE', 'Choose a unique node ID.', node.id);
     seen.add(node.id);
     const routes = outgoing.get(node.id)!.map(edge => edge.route).sort();
-    const expected = node.type === 'trigger' ? ['next'] : node.type === 'condition' ? ['default', 'match'] : [];
+    const expected = node.type === 'trigger' || node.type === 'action' ? ['next'] : node.type === 'condition' ? ['default', 'match'] : [];
     if (JSON.stringify(routes) !== JSON.stringify(expected)) {
       add('INVALID_ROUTES', `Expected routes: ${expected.join(', ') || 'none'}.`, node.id);
     }
@@ -81,5 +89,5 @@ export function validateGraph(input: unknown): ValidationReport {
   }
   // Check disconnected components too, so cycles never escape validation.
   for (const node of nodes) visit(node.id);
-  return { stage: 'structure', valid: issues.length === 0, issues };
+  return issues;
 }
