@@ -25,7 +25,7 @@ Inter's license is included in `assets/fonts/Inter-LICENSE.txt` and the app bund
 
 ## Run the backend
 
-Follow the [repository setup](../README.md#run-locally): install Node dependencies,
+Follow the [repository setup](../README.md#getting-started): install Node dependencies,
 configure the ignored `backend/.env`, start PostgreSQL, apply migrations and run
 the API on `127.0.0.1:3000`. Provider-dependent operations also need the existing
 backend configuration and workers described there. Never put provider secrets or
