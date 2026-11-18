@@ -355,3 +355,16 @@ The worker polls once per second when idle and drains its current bounded operat
 3. Registered COD scenario actions, publication and durable runtime, then React/Flutter client flows.
 
 Automated WhatsApp/Sheets workflows and Business Agent inference remain unimplemented. Manual order records and outcome dashboards are available. The architecture's release acceptance criteria still apply to future increments.
+
+## Flutter mobile frontend
+
+The Flutter app from the `mobile-frontend` branch is in [mobile flater](mobile%20flater/README.md). It includes the Dart source, Android and web projects, assets, and Docker setup. It currently uses local demo data.
+
+From the repository root:
+
+```sh
+docker build -t superagent-mobile "mobile flater"
+docker run --rm -p 127.0.0.1:8080:80 superagent-mobile
+```
+
+Open http://localhost:8080. For Flutter development, run `flutter pub get` and `flutter run -d chrome` inside `mobile flater`.
