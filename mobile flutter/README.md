@@ -1,127 +1,112 @@
-<div align="center">
+# SuperAgent Flutter workspace
 
-# SuperAgent
+Flutter mobile and web client based on the React app in `../frontend`, connected
+to the existing Express/PostgreSQL API in `../backend`.
 
-**The AI-agent workspace, rebuilt as a mobile-first Flutter app.**
-A faithful phone port of the SuperAgent web demo, plus the Phase 1 *WhatsApp cash-on-delivery* flow.
+## Connected screens
 
-![Flutter](https://img.shields.io/badge/Flutter-stable-02569B?logo=flutter&logoColor=white)
-![Platforms](https://img.shields.io/badge/platforms-Web%20%7C%20Android-3DDC84)
-![Docker](https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white)
-![Data](https://img.shields.io/badge/data-local%20demo%20only-lightgrey)
-![Theme](https://img.shields.io/badge/theme-dark-0C0A09)
+- Registration, sign-in, business selection and sign-out; sessions stay in memory.
+- Home: actual daily outcomes in the business timezone, confirmation rate,
+  confirmed value and spreadsheet sync counts.
+- Orders: paginated pending/confirmed/declined board, new-order form, saved
+  summary review and customer decisions tied to the reviewed revision and hash.
+- Business profile: language, timezone and description; staff have read-only access.
+- Spreadsheet delivery for owners: existing destinations, row review, explicit
+  job queueing, job status and read-only reconciliation for uncertain deliveries.
 
-<img src="docs/screenshots/home.png" width="260" alt="Home" />
-&nbsp;
-<img src="docs/screenshots/drawer.png" width="260" alt="Navigation drawer" />
-&nbsp;
-<img src="docs/screenshots/cod_dashboard.png" width="260" alt="COD dashboard" />
+The mobile menu contains Home, Orders and Business profile. Example and preview
+screens have been removed from app navigation and routing; each remaining screen
+uses the authenticated backend. Automated WhatsApp operations and Google
+account/file setup are not implemented by this client.
 
-</div>
+The UI uses the frontend's Inter font, stone palette, field borders and button
+shapes. Phones use a drawer, stacked order groups and responsive metric cards.
+Inter's license is included in `assets/fonts/Inter-LICENSE.txt` and the app bundle.
 
----
+## Run the backend
 
-## Highlights
+Follow the [repository setup](../README.md#run-locally): install Node dependencies,
+configure the ignored `backend/.env`, start PostgreSQL, apply migrations and run
+the API on `127.0.0.1:3000`. Provider-dependent operations also need the existing
+backend configuration and workers described there. Never put provider secrets or
+database credentials in Flutter defines or assets.
 
-- **9 screens ported from the website** — Home, Chat, Inbox, Board, Agents, Docs, Company Brain, Workflows, Canvas.
-- **5 new Phase 1 screens** — COD Dashboard, Builder chat, Review & Publish, Connections, WhatsApp Inbox.
-- **Same design language as the site** — dark stone palette, Satoshi + IBM Plex Mono fonts, pill navigation, 10 px radii. Tokens live in one file: [`lib/theme.dart`](lib/theme.dart).
-- **Sidebar → drawer.** The website hides its sidebar on phones with no replacement, so the app turns it into a drawer with the same order, grouping, icons and badges. No bottom tab bar.
-- **Frontend only.** No network calls, no backend. Every screen reads local demo data and keeps state in memory.
-- **One command to run** with Docker.
+## Run Flutter web locally
 
-## Screens
+From this directory, with Flutter installed:
 
-### Ported from the website
-
-| | | |
-|:--:|:--:|:--:|
-| <img src="docs/screenshots/home.png" width="200"/><br/>**Home** | <img src="docs/screenshots/chat.png" width="200"/><br/>**Chat** | <img src="docs/screenshots/inbox.png" width="200"/><br/>**Inbox** |
-| <img src="docs/screenshots/board.png" width="200"/><br/>**Board** | <img src="docs/screenshots/agents.png" width="200"/><br/>**Agents** | <img src="docs/screenshots/docs.png" width="200"/><br/>**Docs** |
-| <img src="docs/screenshots/brain.png" width="200"/><br/>**Company Brain** | <img src="docs/screenshots/workflows.png" width="200"/><br/>**Workflows** | <img src="docs/screenshots/canvas.png" width="200"/><br/>**Canvas** |
-
-### New: COD Phase 1 (WhatsApp + Google Sheets)
-
-| | | | | |
-|:--:|:--:|:--:|:--:|:--:|
-| <img src="docs/screenshots/cod_dashboard.png" width="150"/><br/>**Dashboard** | <img src="docs/screenshots/cod_builder.png" width="150"/><br/>**Builder** | <img src="docs/screenshots/cod_review.png" width="150"/><br/>**Review & Publish** | <img src="docs/screenshots/cod_connections.png" width="150"/><br/>**Connections** | <img src="docs/screenshots/cod_inbox.png" width="150"/><br/>**WhatsApp Inbox** |
-
-What the COD flow shows:
-
-- **Dashboard** — pending / confirmed / declined counts, confirmation rate (`confirmed ÷ (confirmed + declined)`, shown as “–” when there is no decision), confirmed order value kept separate from cash collected, and a sheet-sync indicator.
-- **Builder** — describe your goal in Darija, get a matched scenario.
-- **Review & Publish** — preview the draft, run simulated cases, approve an exact revision. Editing resets the approval, and Publish stays disabled until it is approved and both connections are healthy.
-- **Connections** — WhatsApp Business and Google Sheets setup cards.
-- **WhatsApp Inbox** — AI vs staff messages, delivery ticks, and a *Take over / Resume* ownership control.
-
-> Every COD screen is labelled **“Demo data”**. Nothing is connected to WhatsApp, Google or any server.
-
-## Run it
-
-### Docker (easiest)
-
-```bash
-docker build -t superagent .
-docker run --rm -p 8080:80 superagent
-```
-
-Open <http://localhost:8080>. To try it on a phone, connect it to the same Wi-Fi and open `http://<your-computer-ip>:8080`.
-
-The image is a lean two-stage build: Flutter web in a small Debian image, served by nginx (~150 MB). The first build downloads the Flutter SDK, so it can take a while on a slow connection.
-
-### Flutter
-
-```bash
+```sh
 flutter pub get
-flutter run -d chrome          # web
-flutter run                    # a connected Android device or emulator
-flutter build web --release    # static site in build/web
+flutter build web --release --no-web-resources-cdn
+node tool/serve-web.mjs
 ```
 
-An Android build needs the Android SDK and a JDK. An iOS build needs a Mac with Xcode; the iOS project has not been generated.
+Open **http://127.0.0.1:8080** and create a workspace or sign in. The Node server
+serves `build/web` and proxies `/v1/` to `http://127.0.0.1:3000`. This keeps API
+requests on the same browser origin without changing backend CORS settings.
+`PORT` changes the web port; `SUPERAGENT_PROXY_TARGET` changes the trusted upstream
+origin. It accepts HTTPS or loopback HTTP and does not log credentials or bodies.
+The web build serves its own rendering assets rather than requiring a CDN.
 
-## Project layout
+For hot reload, a separate `flutter run -d chrome` origin needs an equivalent
+development proxy; the compiled-build command above works without CORS changes.
 
+## Android
+
+With the Android SDK/JDK, a connected device or emulator and the API running:
+
+```sh
+adb reverse tcp:3000 tcp:3000
+flutter run --dart-define=SUPERAGENT_API_URL=http://127.0.0.1:3000/v1/
 ```
-lib/
-├─ main.dart            routes + fade page transitions
-├─ theme.dart           design tokens, SAPage shell, drawer, shared widgets
-├─ screens/             the 9 website screens
-└─ cod/                 the 5 COD screens + tiny shared state
-assets/fonts/           Satoshi, IBM Plex Mono (converted from the site's WOFF2)
-docs/                   project brief, plan, design notes, hand-off, screenshots
-Dockerfile, nginx.conf  container build
+
+`adb reverse` makes device loopback reach the local API. Only the debug manifest
+allows cleartext requests to `127.0.0.1`/`localhost`; release builds need a trusted
+HTTPS endpoint:
+
+```sh
+flutter build apk --dart-define=SUPERAGENT_API_URL=https://your-api.example/v1/
 ```
 
-## Design tokens
+The URL must end with `/v1/`. Native requests use the bearer API directly; web
+deployments should use the same-origin proxy. No Android build or device run has
+been verified in this workspace because the Android SDK is unavailable.
 
-Taken from the website's compiled CSS (dark theme):
+## Docker web build
 
-| Token | Value | Use |
-|---|---|---|
-| `bg` | `#0C0A09` | page background |
-| `sidebar` | `#1C1917` | drawer |
-| `card` | `#292524` | cards, composer, active nav pill |
-| `fg` / `muted` | `#FAFAF9` / `#A8A29E` | text |
-| `border` | white @ 10% | hairlines |
-| `radius` | 10 px | base corner radius |
+```sh
+docker build -t superagent-mobile .
+docker run --rm -p 127.0.0.1:8080:80 superagent-mobile
+```
 
-## Status and known gaps
+The nginx template proxies `/v1/` to `http://host.docker.internal:3000` by default.
+Set `API_UPSTREAM` to the trusted API origin for your deployment. On Linux, use
+`--add-host=host.docker.internal:host-gateway` when targeting the Docker host and
+ensure the API is reachable from the container. Use HTTPS for external access.
 
-What has been checked:
+## Checks
 
-- `flutter analyze` reports no errors.
-- The Docker image builds and serves the app; all 15 screenshots above were taken from it at 390 × 844 @2x.
+```sh
+flutter test
+flutter analyze lib/account lib/workspace lib/main.dart lib/theme.dart test tool/live_api_test.dart
+flutter build web --release --no-web-resources-cdn
+```
 
-What has **not** been done:
+The explicit real-backend check creates synthetic accounts and orders in your
+configured development database:
 
-- No side-by-side visual comparison against the original website, and no check at other phone sizes.
-- No Android APK build and no run on a real device or emulator.
-- No automated tests.
-- Some content is approximated rather than copied from the website: Board's *Done* column, the Company Brain graph connections and observation log, the Canvas images (gradient placeholders), and only 20 of the Inbox rows.
-- Board's filter tabs are not interactive yet.
-- Fonts are converted from the website's WOFF2 files; their licences have not been reviewed.
+```sh
+flutter test tool/live_api_test.dart
+```
 
-## Docs
+Set `--dart-define=SUPERAGENT_TEST_API=https://your-test-api.example/v1/` to use a
+different dedicated test API. It is intentionally outside unit-test discovery.
 
-[`docs/PROJECT_BRIEF.md`](docs/PROJECT_BRIEF.md) · [`docs/IMPLEMENTATION_PLAN.md`](docs/IMPLEMENTATION_PLAN.md) · [`docs/DESIGN_REFERENCE.md`](docs/DESIGN_REFERENCE.md) · [`docs/DECISIONS.md`](docs/DECISIONS.md) · [`docs/VERIFICATION.md`](docs/VERIFICATION.md) · [`docs/HANDOFF.md`](docs/HANDOFF.md)
+For isolated headless Chrome verification, install the frontend's locked tools
+with `npm --prefix ../frontend ci --ignore-scripts`, start the backend and web
+server, then run `node tool/browser-smoke.mjs`. This creates a synthetic account
+and order and stores phone screenshots under ignored `build/verification/`.
+
+See [connected workspace scope](docs/CONNECTED_WORKSPACE.md),
+[API/session details](docs/ACCOUNT_INTEGRATION.md) and
+[verification evidence](docs/VERIFICATION.md).

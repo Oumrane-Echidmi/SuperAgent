@@ -17,10 +17,11 @@ WORKDIR /app
 COPY pubspec.yaml pubspec.lock ./
 RUN flutter pub get
 COPY . .
-RUN flutter build web --release
+RUN flutter build web --release --no-web-resources-cdn
 
 FROM nginx:alpine
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+ENV API_UPSTREAM=http://host.docker.internal:3000
+COPY nginx.conf /etc/nginx/templates/default.conf.template
 COPY --from=build /app/build/web /usr/share/nginx/html
 EXPOSE 80
 CMD ["nginx", "-g", "daemon off;"]

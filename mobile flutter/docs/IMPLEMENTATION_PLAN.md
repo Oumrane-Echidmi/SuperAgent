@@ -1,5 +1,11 @@
 # Implementation plan and status
 
+> Historical demo-port plan. The user's later request to follow the React
+> frontend and connect Flutter to the backend supersedes the gates and progress
+> below. See [CONNECTED_WORKSPACE.md](CONNECTED_WORKSPACE.md) for current scope,
+> [HANDOFF.md](HANDOFF.md) for current implementation, and
+> [VERIFICATION.md](VERIFICATION.md) for completed checks and remaining limits.
+
 ## Approval gates
 
 1. Establish Flutter/Android toolchain and inspect source references.
