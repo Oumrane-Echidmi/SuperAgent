@@ -9,13 +9,13 @@ import {
   BrainCircuit,
   Workflow,
   Palette,
-  FolderClosed,
   ChevronsUpDown,
   UserRound,
   Settings,
   LogOut,
   Keyboard,
   CircleHelp,
+  Link2,
 } from "lucide-react";
 import Avatar from "./Avatar";
 import Dropdown from "./Dropdown";
@@ -31,6 +31,8 @@ const PRIMARY = [
 
 const WORKSPACE = [
   { to: "/settings", label: "Business profile", icon: Settings },
+  { to: "/connections", label: "Connections", icon: Link2 },
+  { to: "/builder", label: "Builder", icon: Workflow },
   { to: "/agents", label: "Agents", icon: Users, badge: "Preview" },
   { to: "/docs", label: "Docs", icon: FileText, badge: "Preview" },
   {
@@ -80,7 +82,7 @@ export default function Sidebar() {
     <aside className="sidebar">
       <Link className="brand" to="/" title={tenant.name}>
         <span className="brand-tile">
-          <FolderClosed size={15} strokeWidth={1.8} />
+          <img src="/logo-mark-light.png" alt="" width={18} height={18} />
         </span>
         <span className="brand-name">{tenant.name}</span>
       </Link>

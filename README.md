@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="frontend/public/logo.png" alt="SuperAgent logo" width="320" />
+
 # SuperAgent
 
 **A shared workspace for Moroccan shops to manage orders, customer decisions, and daily outcomes.**
@@ -136,6 +138,7 @@ scripts load `backend/.env`; Docker Compose receives it through `--env-file`.
 | `SHEETS_DELIVERY_ENABLED` | `false` by default; enables owner-authorized delivery | Sheets delivery |
 | `SHEETS_WORKER_ENABLED` | `false` by default; enables the separate background delivery worker | Background delivery |
 | `SHEETS_WORKER_DATABASE_PASSWORD`, `SHEETS_WORKER_DATABASE_URL` | Separately provisioned Sheets worker login; password must be at least 24 characters | Background delivery |
+| `WHATSAPP_ENABLED`, `WHATSAPP_APP_SECRET`, `WHATSAPP_VERIFY_TOKEN` | `false` by default; Meta app secret and webhook verify token (each at least 16 characters) | WhatsApp intake |
 
 Keep optional flags disabled until their dependencies are configured. Provider
 credentials belong on the backend. See the [API reference](docs/API.md) for worker
@@ -309,9 +312,9 @@ were found in the application sources during this documentation review.
 - [x] Connect business identity, profiles, manual orders, and outcomes to React and Flutter.
 - [x] Add reviewed customer decisions and explicit spreadsheet delivery/job APIs.
 - [x] Add capability validation, scenario releases, and tenant draft simulation/approval APIs.
-- [ ] Connect remaining Builder/catalog client screens.
-- [ ] Add a Google OAuth callback client and authorized spreadsheet file picker.
-- [ ] Implement verified WhatsApp intake.
+- [x] Connect Builder/catalog client screens on the web (Builder page: catalog, drafts, simulate/approve, consent-based chat). Flutter screens remain.
+- [x] Add a Google OAuth callback client and spreadsheet picker on the web (Connections page; paste a Sheets link). Flutter client remains.
+- [x] Implement verified WhatsApp intake: signed webhook, number registration, deduplicated message storage (`/v1/webhooks/whatsapp`, `/v1/tenants/:id/whatsapp-numbers`, `/whatsapp-messages`). Replies and order extraction are not implemented.
 - [ ] Add registered COD scenario actions, publication, and durable automated workflow execution.
 - [ ] Complete Android APK and device verification.
 

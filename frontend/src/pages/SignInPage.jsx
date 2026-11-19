@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { FolderClosed, ArrowRight } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { useWorkspace } from "../context/WorkspaceContext";
 
 export default function SignInPage() {
@@ -34,7 +34,7 @@ export default function SignInPage() {
       <div className="sign-in-card">
         <div className="live-brand">
           <span className="brand-tile">
-            <FolderClosed size={17} />
+            <img src="/logo-mark-light.png" alt="" width={20} height={20} />
           </span>
           SuperAgent
         </div>

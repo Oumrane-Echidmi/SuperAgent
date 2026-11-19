@@ -18,8 +18,10 @@ import type { GoogleSheetsAccess } from './google-access.ts';
 import { sheetDeliveryRoutes } from './sheet-delivery-routes.ts';
 import type { GoogleDeliveryProvider } from './sheet-delivery.ts';
 import { sheetJobRoutes } from './sheet-job-routes.ts';
+import { whatsappRoutes } from './whatsapp.ts';
+import type { WhatsAppConfig } from './whatsapp.ts';
 
-export function createApp(db?: Database, options: { builderAiEnabled?: boolean; google?: GoogleConnectionConfig; googleOAuth?: GoogleOAuth; googleSheets?: GoogleSheetsAccess; sheetDeliveryEnabled?: boolean; googleDelivery?: GoogleDeliveryProvider } = {}) {
+export function createApp(db?: Database, options: { whatsapp?: WhatsAppConfig; builderAiEnabled?: boolean; google?: GoogleConnectionConfig; googleOAuth?: GoogleOAuth; googleSheets?: GoogleSheetsAccess; sheetDeliveryEnabled?: boolean; googleDelivery?: GoogleDeliveryProvider } = {}) {
   const app = express();
   app.disable('x-powered-by');
   app.use((_req, res, next) => {
@@ -27,7 +29,7 @@ export function createApp(db?: Database, options: { builderAiEnabled?: boolean; 
       'Content-Security-Policy': "default-src 'none'; frame-ancestors 'none'", 'Referrer-Policy': 'no-referrer' });
     next();
   });
-  app.use(express.json({ limit: '64kb', inflate: false }));
+  app.use(express.json({ limit: '64kb', inflate: false, verify: (req, _res, buf) => { (req as unknown as { rawBody: Buffer }).rawBody = buf; } }));
   app.get('/healthz', (_req, res) => { res.json({ status: 'ok' }); });
   app.use('/v1', workflowRoutes());
   if (db) app.use('/v1', identityRoutes(db));
@@ -35,6 +37,7 @@ export function createApp(db?: Database, options: { builderAiEnabled?: boolean; 
   if (db) app.use('/v1', builderRoutes(db));
   if (db) app.use('/v1', matchingRoutes(db));
   if (db) app.use('/v1', builderChatRoutes(db, options.builderAiEnabled ?? false));
+  if (db) app.use('/v1', whatsappRoutes(db, options.whatsapp));
   if (db) app.use('/v1', codRoutes(db));
   if (db) app.use('/v1', codDashboardRoutes(db));
   if (db) app.use('/v1', googleConnectionRoutes(db, options.google, options.googleOAuth));

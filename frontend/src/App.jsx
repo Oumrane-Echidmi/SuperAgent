@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate } from "react-router-dom";
+import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import Sidebar from "./components/Sidebar";
 import { ToastProvider } from "./context/ToastContext";
 import HomePage from "./pages/HomePage";
@@ -17,6 +17,8 @@ import OrdersPage from "./pages/OrdersPage";
 import NewOrderPage from "./pages/NewOrderPage";
 import OrderDetailsPage from "./pages/OrderDetailsPage";
 import BusinessProfilePage from "./pages/BusinessProfilePage";
+import ConnectionsPage, { CallbackPage } from "./pages/ConnectionsPage";
+import BuilderPage from "./pages/BuilderPage";
 
 function Preview({ children }) {
   return (
@@ -30,7 +32,10 @@ function Preview({ children }) {
   );
 }
 function Workspace() {
-  const { session, tenant, signOut, notice } = useWorkspace();
+  const { session, tenant, signOut, notice } = useWorkspace(),
+    location = useLocation();
+  if (location.pathname === "/google/callback")
+    return <CallbackPage />;
   if (!session) return <SignInPage />;
   if (!tenant)
     return (
@@ -55,6 +60,8 @@ function Workspace() {
           <Route path="/orders/new" element={<NewOrderPage />} />
           <Route path="/orders/:id" element={<OrderDetailsPage />} />
           <Route path="/settings" element={<BusinessProfilePage />} />
+          <Route path="/connections" element={<ConnectionsPage />} />
+          <Route path="/builder" element={<BuilderPage />} />
           <Route
             path="/chat"
             element={
