@@ -1,61 +1,119 @@
 <div align="center">
 
-<img src="frontend/public/logo.png" alt="SuperAgent logo" width="320" />
+<img src="frontend/public/logo.png" alt="SuperAgent" width="280" />
 
-# SuperAgent
+### The open-source operations workspace for cash-on-delivery shops
 
-**A shared workspace for Moroccan shops to manage orders, customer decisions, and daily outcomes.**
+Record orders, capture what customers confirmed, and let approved workflows
+handle the repetitive replies, with a human always one step away.
 
 <p>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="License: MIT" /></a>
   <a href="package.json"><img src="https://img.shields.io/badge/Node.js-24%2B-339933?logo=nodedotjs&logoColor=white" alt="Node.js 24 or newer" /></a>
   <a href="backend/package.json"><img src="https://img.shields.io/badge/TypeScript-5.9-3178C6?logo=typescript&logoColor=white" alt="TypeScript 5.9" /></a>
-  <a href="mobile%20flutter/pubspec.yaml"><img src="https://img.shields.io/badge/mobile-Flutter-02569B?logo=flutter&logoColor=white" alt="Mobile client: Flutter" /></a>
+  <a href="compose.yaml"><img src="https://img.shields.io/badge/PostgreSQL-18-4169E1?logo=postgresql&logoColor=white" alt="PostgreSQL 18" /></a>
+  <a href="frontend/package.json"><img src="https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black" alt="React 19" /></a>
+  <img src="https://img.shields.io/badge/Flutter-mobile-02569B?logo=flutter&logoColor=white" alt="Flutter mobile client" />
+  <a href="https://github.com/Oumrane-Echidmi/SuperAgent/pulls"><img src="https://img.shields.io/badge/PRs-welcome-brightgreen" alt="PRs welcome" /></a>
 </p>
 
-[Getting Started](#getting-started) · [Screenshots](#demo--screenshots) · [API Reference](docs/API.md) · [Developer Guide](docs/DEVELOPMENT.md)
+[Quick start](#quick-start) · [Features](#features) · [How it works](#how-it-works) · [Screenshots](#demo--screenshots) · [API reference](docs/API.md) · [Developer guide](docs/DEVELOPMENT.md) · [Roadmap](#roadmap) · [Contributing](#contributing)
 
 </div>
 
-## About
+---
 
-Cash-on-delivery shops need a reliable record of what a customer ordered, what
-they confirmed, and what still needs attention. SuperAgent brings those records
-into a tenant-scoped workspace with a React web app, a Flutter mobile client,
-and a shared TypeScript API.
+## Why SuperAgent
 
-The connected clients support manual order entry, reviewed customer decisions,
-business settings, and daily outcomes. The backend also provides workflow
-validation, scenario releases, Builder draft approval, and optional Google Sheets
-delivery. These foundations do not yet provide automated WhatsApp intake or a
-running Business Agent.
+In cash-on-delivery commerce, the customer's "yes" is the contract. Shops lose
+money when a confirmation lives only in a chat thread: the order is shipped,
+the buyer refuses, and nobody can show what was actually agreed.
+
+SuperAgent keeps one tenant-scoped record of **what was ordered, what the
+customer confirmed, and what still needs a person**. A React web app, a Flutter
+mobile client, and a TypeScript API share that record. Automation is opt-in,
+reviewed before it goes live, and leaves a step-by-step audit trail.
+
+> **Status: early and moving fast.** The order workspace, WhatsApp intake, and
+> the workflow runtime work end to end in tests. Automated replies to
+> customers, a hosted deployment, and verified Android device runs are still
+> ahead. See the [roadmap](#roadmap).
+
+## Features
+
+| | |
+| --- | --- |
+| 🏪 **Business workspaces** | Registration, sign-in, owner/staff roles, business profiles, and tenant isolation enforced by PostgreSQL row-level security. |
+| 📦 **COD order management** | Manual order entry, integer-centime pricing, saved summaries, and customer decisions bound to the exact reviewed revision. |
+| 📊 **Daily outcomes** | Pending / confirmed / declined counts, confirmation rate, confirmed order value, and outstanding sheet sync. |
+| 💬 **WhatsApp intake** | Signature-verified Meta Cloud API webhook, one number per business, deduplicated message storage. |
+| 🤖 **Reviewed automation** | Pick a released scenario, simulate it, approve the exact revision, then publish it to a number. Pause any time. |
+| ⚙️ **Durable execution** | Every workflow step is journaled in the same transaction as its effect, so a crashed run resumes without repeating work. |
+| 📄 **Google Sheets delivery** | Reviewed rows, explicit destination selection, queued jobs, and read-only reconciliation of uncertain outcomes. |
+| 🧠 **Optional AI Builder** | Consent-based scenario matching and scoped chat through a separate worker. Off by default. |
+| 🌍 **Built for Morocco** | French and Darija copy, MAD amounts, and Moroccan time zone defaults. |
+
+**Principles:** a human can always take over · nothing publishes without an
+approved revision · side effects are idempotent · secrets stay on the backend ·
+every optional integration is off until configured.
+
+## How it works
+
+```mermaid
+flowchart LR
+    C["Customer on WhatsApp"] -->|signed webhook| I["Intake: verify, dedupe, store"]
+    I --> Q["Run queue"]
+    S["Released scenario"] --> D["Draft, simulate, approve"]
+    D --> P["Publish to a number"]
+    P --> Q
+    Q --> R["Durable runner: journaled steps"]
+    R -->|confirm / decline| O["Orders and outcomes"]
+    R -->|unclear| H["Human handoff"]
+    O --> G["Google Sheets delivery"]
+    O --> W["Web and mobile dashboards"]
+```
+
+1. A customer replies to a pending order on WhatsApp.
+2. The webhook verifies Meta's signature and stores the message once.
+3. If a workflow is live on that number, a run is queued.
+4. The runner executes the published manifest one node at a time. Clear replies
+   ("oui", "نعم", "non merci") become a recorded confirmation or refusal;
+   anything else is left for a person.
+5. The order, its evidence, and the full run history appear in the clients.
+
+The target design, including what is deliberately out of scope, is in
+[ARCHITECTURE.md](ARCHITECTURE.md).
+
+## Quick start
+
+You need **Node.js 24+**, **Docker with Compose**, and **Git**.
+
+```sh
+git clone https://github.com/Oumrane-Echidmi/SuperAgent.git
+cd SuperAgent
+npm ci && npm --prefix frontend ci --ignore-scripts
+cp backend/.env.example backend/.env        # then set two random passwords
+docker compose --env-file backend/.env up -d --wait
+npm run db:migrate
+npm run dev                                  # API on http://127.0.0.1:3000
+```
+
+In a second terminal run `npm --prefix frontend run dev` and open
+**http://127.0.0.1:4173**. Create a workspace, set the business profile, and
+record your first order. No Google, OpenAI, or WhatsApp credentials are needed
+for the basic workspace. Full setup, environment variables, and the Flutter
+client are covered in [Getting Started](#getting-started).
 
 ## Contents
 
-- [Key Features](#key-features)
+- [Features](#features) · [How it works](#how-it-works) · [Quick start](#quick-start)
 - [Demo / Screenshots](#demo--screenshots)
 - [Tech Stack](#tech-stack)
 - [Getting Started](#getting-started)
 - [Usage](#usage)
 - [Project Structure](#project-structure)
 - [Roadmap](#roadmap)
-- [Contributing](#contributing)
-- [License](#license)
-- [Contact / Acknowledgments](#contact--acknowledgments)
-
-## Key Features
-
-- 🏪 **Business workspaces** — registration, sign-in, tenant selection, owner/staff access, and business profiles.
-- 📦 **COD order management** — manual order entry, integer-centime pricing, saved summaries, and revision-bound customer decisions.
-- 📊 **Daily outcomes** — pending, confirmed, and declined counts, confirmation rate, confirmed order value, and outstanding sheet sync.
-- 📱 **Connected web and mobile clients** — React workspace plus Flutter Home, Orders, and Business profile screens.
-- 📄 **Explicit spreadsheet delivery** — reviewed rows, existing destination selection, queued delivery jobs, and read-only reconciliation of uncertain outcomes; requires Google configuration.
-- 🧩 **Workflow API foundation** — versioned capabilities, structural/binding validation, immutable scenario releases, draft simulation, and approval.
-- 💬 **Optional AI Builder** — consent-based, queued scenario matching and scoped chat through a separate worker.
-
-The web client retains clearly labelled preview pages. The mobile client exposes
-only connected workspace screens. Some backend capabilities, including Builder
-and Google account/file setup, do not yet have connected client screens.
+- [Contributing](#contributing) · [Security](#security) · [License](#license)
 
 ## Demo / Screenshots
 
@@ -305,19 +363,26 @@ SuperAgent/
 
 ## Roadmap
 
-These items reflect implemented work and documented gaps in the
-[API reference](docs/API.md), [architecture](ARCHITECTURE.md), and
-[mobile handoff](mobile%20flutter/docs/HANDOFF.md). No inline TODO/FIXME markers
-were found in the application sources during this documentation review.
+Shipped:
 
-- [x] Connect business identity, profiles, manual orders, and outcomes to React and Flutter.
-- [x] Add reviewed customer decisions and explicit spreadsheet delivery/job APIs.
-- [x] Add capability validation, scenario releases, and tenant draft simulation/approval APIs.
-- [x] Connect Builder/catalog client screens on the web (Builder page: catalog, drafts, simulate/approve, consent-based chat). Flutter screens remain.
-- [x] Add a Google OAuth callback client and spreadsheet picker on the web (Connections page; paste a Sheets link). Flutter client remains.
-- [x] Implement verified WhatsApp intake: signed webhook, number registration, deduplicated message storage (`/v1/webhooks/whatsapp`, `/v1/tenants/:id/whatsapp-numbers`, `/whatsapp-messages`). Replies and order extraction are not implemented.
-- [x] Add registered COD scenario actions (`cod.order.confirm`/`decline`, `cod.text.intent`, `whatsapp.message`), publication of approved drafts to a WhatsApp number, and durable journaled workflow execution (`WORKFLOW_RUNNER_ENABLED=true`). Sample scenario: `backend/examples/cod-confirmation-scenario.json`. Automated replies to customers are not sent.
-- [ ] Complete Android APK and device verification.
+- [x] Business identity, profiles, manual orders, and outcomes on web and mobile.
+- [x] Reviewed customer decisions and explicit Google Sheets delivery.
+- [x] Capability validation, scenario releases, draft simulation and approval.
+- [x] Web screens for the Builder, scenario catalog, and Google connections.
+- [x] Signature-verified WhatsApp intake with per-business number registration.
+- [x] COD workflow actions, publication to a number, and journaled durable execution (`WORKFLOW_RUNNER_ENABLED=true`). Sample: [`cod-confirmation-scenario.json`](backend/examples/cod-confirmation-scenario.json).
+
+Next (contributions welcome):
+
+- [ ] Send WhatsApp replies to customers (outbound messages, templates, 24-hour window rules).
+- [ ] Create order attempts from incoming messages instead of staff entry.
+- [ ] Flutter screens for the Builder, Google connections, and workflow runs.
+- [ ] Web screens for WhatsApp numbers and inbound messages.
+- [ ] Android device verification (a debug APK builds; no device run is recorded yet).
+- [ ] Hosted deployment guide: HTTPS reverse proxy, secret management, worker processes.
+- [ ] A public demo.
+
+Have an idea? [Open an issue](https://github.com/Oumrane-Echidmi/SuperAgent/issues).
 
 ## Contributing
 
@@ -331,6 +396,14 @@ were found in the application sources during this documentation review.
 Keep secrets out of commits. Preserve tenant authorization, revision checks,
 idempotent retries, and provider reconciliation rules described in
 [backend security](backend/SECURITY.md) and the [API reference](docs/API.md).
+
+## Security
+
+Tenant isolation, revision checks, idempotent retries, and provider
+reconciliation are core invariants. Please **do not open public issues for
+vulnerabilities**: report them privately through GitHub's
+[security advisories](https://github.com/Oumrane-Echidmi/SuperAgent/security/advisories/new).
+The threat model is in [backend/SECURITY.md](backend/SECURITY.md).
 
 ## License
 
