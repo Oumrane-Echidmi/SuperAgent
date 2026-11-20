@@ -10,7 +10,7 @@ export class RunFailure extends Error {
   readonly code: string;
   constructor(code: string) { super(code); this.code = code; }
 }
-interface Context { client: PoolClient; tenantId: string; runId: string; nodeId: string; actor: string; event: Record<string, Scalar> }
+interface Context { phoneNumberId: string; client: PoolClient; tenantId: string; runId: string; nodeId: string; actor: string; event: Record<string, Scalar> }
 type Effect = (context: Context, inputs: Record<string, Scalar>) => Promise<Record<string, Scalar>>;
 
 function deterministicId(...parts: string[]) {
@@ -38,6 +38,16 @@ async function decide(context: Context, inputs: Record<string, Scalar>, decision
 }
 // Registered side-effecting actions. Each runs inside the step transaction that journals it.
 const effects: Record<string, Effect> = {
+  // Records the intent only; the outbox sender delivers it. One row per run and node makes replays harmless.
+  'whatsapp.reply': async (context, inputs) => {
+    const text = String(inputs.text).trim().slice(0, 4096);
+    if (!text) throw new RunFailure('EMPTY_REPLY');
+    await context.client.query(`INSERT INTO whatsapp_outbox(tenant_id, id, run_id, node_id, phone_number_id, to_phone, body)
+      VALUES ($1, $2, $3, $4, $5, $6, $7) ON CONFLICT (tenant_id, run_id, node_id) DO NOTHING`,
+    [context.tenantId, deterministicId(context.tenantId, context.runId, context.nodeId, 'outbox'), context.runId, context.nodeId,
+      context.phoneNumberId, String(context.event.customerPhone), text]);
+    return { status: 'QUEUED' };
+  },
   'cod.order.confirm': async (context, inputs) => ({ orderId: (await decide(context, inputs, 'CONFIRM')).orderId ?? '' }),
   'cod.order.decline': async (context, inputs) => ({ status: (await decide(context, inputs, 'DECLINE')).status }),
 };
@@ -61,7 +71,7 @@ async function runStep(client: PoolClient, tenantId: string, runId: string, acto
     current = edge ? nodes.get(edge.to) : undefined;
   }
   if (!current) throw new RunFailure('WORKFLOW_STATE_INVALID');
-  const message = await client.query('SELECT body, customer_phone FROM whatsapp_messages WHERE tenant_id = $1 AND message_id = $2', [tenantId, run.rows[0].message_id]);
+  const message = await client.query('SELECT body, customer_phone, phone_number_id FROM whatsapp_messages WHERE tenant_id = $1 AND message_id = $2', [tenantId, run.rows[0].message_id]);
   if (!message.rowCount) throw new RunFailure('MESSAGE_MISSING');
   const event: Record<string, Scalar> = { text: message.rows[0].body ?? '', customerPhone: message.rows[0].customer_phone };
   const inputs: Record<string, Scalar> = Object.fromEntries(Object.entries(current.inputs).map(([key, binding]) => [key,
@@ -74,7 +84,7 @@ async function runStep(client: PoolClient, tenantId: string, runId: string, acto
     if (effect) {
       // Validate inputs against the same contract first; the real effect then supplies the outputs.
       executeLocalCapability(name, version, inputs);
-      result = { outputs: await effect({ client, tenantId, runId, nodeId: current.id, actor, event }, inputs), route: 'next' as 'next' | 'match' | 'default' | null };
+      result = { outputs: await effect({ client, tenantId, runId, nodeId: current.id, actor, event, phoneNumberId: message.rows[0].phone_number_id }, inputs), route: 'next' as 'next' | 'match' | 'default' | null };
     } else result = executeLocalCapability(name, version, inputs, isTrigger ? event : {});
   } catch (error) {
     if (error instanceof RunFailure || error instanceof HttpError) throw error;

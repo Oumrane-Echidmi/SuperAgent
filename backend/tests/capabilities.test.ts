@@ -4,7 +4,7 @@ import { listCapabilities, getCapability, executeLocalCapability } from '../src/
 
 test('registered contracts are immutable, pinned and backed by passing local fixtures', () => {
   const capabilities = listCapabilities();
-  assert.equal(capabilities.length, 8);
+  assert.equal(capabilities.length, 10);
   for (const capability of capabilities) {
     assert.equal(getCapability(capability.name, capability.version), capability);
     assert.ok(Object.isFrozen(capability));

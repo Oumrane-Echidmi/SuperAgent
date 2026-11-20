@@ -118,5 +118,14 @@ export function whatsappRoutes(db: Database, config?: WhatsAppConfig) {
         FROM whatsapp_messages WHERE tenant_id=$1 ORDER BY received_at DESC, message_id LIMIT $2 OFFSET $3`, [tenantId, q.limit, q.offset])).rows);
     res.json({ data, ...q });
   });
+  router.get('/tenants/:tenantId/whatsapp-outbox', async (req, res) => {
+    res.set('Cache-Control', 'no-store');
+    const tenantId = parse(z.uuid(), req.params.tenantId);
+    const q = parse(z.strictObject({ limit: z.coerce.number().int().min(1).max(100).default(20), offset: z.coerce.number().int().min(0).max(10000).default(0) }), req.query);
+    const data = await db.authenticated(readBearerToken(req.headers.authorization), async client =>
+      (await client.query(`SELECT id, run_id AS "runId", to_phone AS "to", body, status, attempts, error_code AS "errorCode", created_at AS "createdAt", sent_at AS "sentAt"
+        FROM whatsapp_outbox WHERE tenant_id=$1 ORDER BY created_at DESC, id LIMIT $2 OFFSET $3`, [tenantId, q.limit, q.offset])).rows);
+    res.json({ data, ...q });
+  });
   return router;
 }

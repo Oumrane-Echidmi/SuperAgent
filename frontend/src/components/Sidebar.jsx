@@ -33,6 +33,7 @@ const WORKSPACE = [
   { to: "/settings", label: "Business profile", icon: Settings },
   { to: "/connections", label: "Connections", icon: Link2 },
   { to: "/builder", label: "Builder", icon: Workflow },
+  { to: "/whatsapp", label: "WhatsApp", icon: MessageCircle },
   { to: "/agents", label: "Agents", icon: Users, badge: "Preview" },
   { to: "/docs", label: "Docs", icon: FileText, badge: "Preview" },
   {

@@ -14,7 +14,7 @@ export interface Capability {
   readonly event: Fields;
   readonly connectionType: null;
   readonly requiredScopes: readonly string[];
-  readonly risk: 'none' | 'orders';
+  readonly risk: 'none' | 'orders' | 'messages';
   readonly timeoutMs: number;
   readonly retry: 'never';
   readonly idempotency: 'pure' | 'keyed';
@@ -40,6 +40,12 @@ export function classifyIntent(text: string): 'confirm' | 'decline' | 'unclear' 
   if (CONFIRM.includes(value)) return 'confirm';
   if (DECLINE.includes(value)) return 'decline';
   return 'unclear';
+}
+
+// Whole-word / whole-phrase keyword match over a comma-separated list (accents and case ignored).
+export function matchesKeywords(text: string, keywords: string): boolean {
+  const haystack = ` ${normalize(text)} `;
+  return keywords.split(',').map(normalize).filter(Boolean).some(keyword => haystack.includes(` ${keyword} `));
 }
 
 const stringField = { type: 'string' } as const;
@@ -88,6 +94,20 @@ const definitions: { contract: Capability; execute: (inputs: Record<string, Scal
     inputs: { evidence: stringField }, outputs: { status: stringField }, event: {},
     fixtures: [{ inputs: { evidence: 'Non' }, result: { outputs: { status: 'DECLINED' }, route: 'next' } }] },
     execute: () => ({ outputs: { status: 'DECLINED' }, route: 'next' }) },
+  { contract: { ...common, name: 'text.keywords', family: 'condition', implementation: 'builtin/text.keywords@1.0.0',
+    inputs: { text: stringField, keywords: stringField }, outputs: { matches: { type: 'boolean' } }, event: {},
+    fixtures: [
+      { inputs: { text: 'Je voudrais un RDV demain', keywords: 'rdv, rendez-vous' }, result: { outputs: { matches: true }, route: 'match' } },
+      { inputs: { text: 'bonjour', keywords: 'rdv, rendez-vous' }, result: { outputs: { matches: false }, route: 'default' } },
+    ] },
+    execute: inputs => {
+      const matches = matchesKeywords(String(inputs.text), String(inputs.keywords));
+      return { outputs: { matches }, route: matches ? 'match' : 'default' };
+    } },
+  { contract: { ...common, risk: 'messages', idempotency: 'keyed', name: 'whatsapp.reply', family: 'action', implementation: 'runtime/whatsapp.reply@1.0.0',
+    inputs: { text: stringField }, outputs: { status: stringField }, event: {},
+    fixtures: [{ inputs: { text: 'Merci !' }, result: { outputs: { status: 'QUEUED' }, route: 'next' } }] },
+    execute: () => ({ outputs: { status: 'QUEUED' }, route: 'next' }) },
   { contract: { ...common, name: 'workflow.end', family: 'end', implementation: 'builtin/workflow.end@1.0.0',
     inputs: { reason: stringField }, outputs: {}, event: {},
     fixtures: [{ inputs: { reason: 'complete' }, result: { outputs: {}, route: null } }] },

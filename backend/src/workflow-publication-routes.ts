@@ -5,10 +5,14 @@ import type { PoolClient } from 'pg';
 import { z } from 'zod';
 import { Database, HttpError } from './database.ts';
 import { readBearerToken } from './auth.ts';
+import { validateGenerated } from './workflow-generator.ts';
 import { draftPaginationSchema, expectedRevisionSchema, loadDraft, parseBuilder, requireRevision, requireTenant, reviewDraft, SIMULATOR_VERSION } from './builder.ts';
 
-const publishSchema = z.strictObject({ id: z.uuid(), draftId: z.uuid(), expectedRevision: expectedRevisionSchema.shape.expectedRevision, whatsappNumberId: z.uuid() });
-const columns = `id, draft_id AS "draftId", draft_revision AS "draftRevision", scenario_id AS "scenarioId", scenario_revision AS "scenarioRevision",
+const publishSchema = z.union([
+  z.strictObject({ id: z.uuid(), draftId: z.uuid(), expectedRevision: expectedRevisionSchema.shape.expectedRevision, whatsappNumberId: z.uuid() }),
+  z.strictObject({ id: z.uuid(), generatedWorkflowId: z.uuid(), whatsappNumberId: z.uuid() }),
+]);
+const columns = `id, generated_workflow_id AS "generatedWorkflowId", draft_id AS "draftId", draft_revision AS "draftRevision", scenario_id AS "scenarioId", scenario_revision AS "scenarioRevision",
   whatsapp_number_id AS "whatsappNumberId", manifest_hash AS "manifestHash", status, published_by AS "publishedBy", published_at AS "publishedAt", updated_at AS "updatedAt"`;
 const page = (rows: unknown[], p: { page: number; pageSize: number }, total: number) =>
   ({ data: rows, pagination: { page: p.page, pageSize: p.pageSize, totalItems: total, totalPages: Math.ceil(total / p.pageSize) } });
@@ -30,28 +34,43 @@ export function workflowPublicationRoutes(db: Database) {
       const existing = await client.query(`SELECT ${columns} FROM workflow_publications WHERE tenant_id = $1 AND id = $2`, [tenantId, input.id]);
       if (existing.rowCount) {
         const row = existing.rows[0];
-        if (row.draftId !== input.draftId || row.draftRevision !== input.expectedRevision || row.whatsappNumberId !== input.whatsappNumberId) {
-          throw new HttpError(409, 'PUBLICATION_ID_REUSED', 'This publication ID was used with different details.');
-        }
+        const same = 'generatedWorkflowId' in input
+          ? row.generatedWorkflowId === input.generatedWorkflowId
+          : row.draftId === input.draftId && row.draftRevision === input.expectedRevision;
+        if (!same || row.whatsappNumberId !== input.whatsappNumberId) throw new HttpError(409, 'PUBLICATION_ID_REUSED', 'This publication ID was used with different details.');
         return { status: 200, row };
       }
-      const draft = await loadDraft(client, tenantId, input.draftId, true);
-      requireRevision(draft, input.expectedRevision);
-      const approval = await client.query('SELECT 1 FROM draft_approvals WHERE tenant_id = $1 AND draft_id = $2 AND revision = $3 AND simulator_version = $4 AND revision_hash = $5',
-        [tenantId, draft.id, draft.revision, SIMULATOR_VERSION, draft.revisionHash]);
-      if (!approval.rowCount) throw new HttpError(409, 'APPROVAL_REQUIRED', 'Approve this exact draft revision before publishing.');
       const number = await client.query('SELECT 1 FROM whatsapp_numbers WHERE tenant_id = $1 AND id = $2', [tenantId, input.whatsappNumberId]);
       if (!number.rowCount) throw new HttpError(404, 'NOT_FOUND', 'WhatsApp number not found.');
-      const review = await reviewDraft(client, draft);
-      const triggers = review.effectiveWorkflow.nodes.filter(node => node.capability.name === 'whatsapp.message');
-      if (triggers.length !== 1) throw new HttpError(422, 'NOT_PUBLISHABLE', 'Only workflows that start from a WhatsApp message can be published.');
-      const manifest = { schemaVersion: 1, scenarioId: draft.scenarioId, scenarioRevision: draft.scenarioRevision, draftId: draft.id,
-        draftRevision: draft.revision, revisionHash: draft.revisionHash, parameters: review.effectiveParameters, workflow: review.effectiveWorkflow };
+      let source: { draftId: string | null; draftRevision: number | null; scenarioId: string | null; scenarioRevision: number | null; generatedWorkflowId: string | null };
+      let manifest: Record<string, unknown>;
+      if ('generatedWorkflowId' in input) {
+        const generated = await client.query('SELECT workflow, fixtures, approved_at FROM generated_workflows WHERE tenant_id = $1 AND id = $2', [tenantId, input.generatedWorkflowId]);
+        if (!generated.rowCount) throw new HttpError(404, 'NOT_FOUND', 'Generated workflow not found.');
+        if (!generated.rows[0].approved_at) throw new HttpError(409, 'APPROVAL_REQUIRED', 'Approve this generated workflow before publishing.');
+        // Re-validate at publication so a changed capability catalog cannot publish a stale workflow.
+        const checked = validateGenerated({ workflow: generated.rows[0].workflow, fixtures: generated.rows[0].fixtures });
+        if (checked.status !== 'READY' || !checked.workflow) throw new HttpError(422, 'NOT_PUBLISHABLE', 'This workflow no longer passes validation.');
+        manifest = { schemaVersion: 1, generatedWorkflowId: input.generatedWorkflowId, workflow: checked.workflow };
+        source = { draftId: null, draftRevision: null, scenarioId: null, scenarioRevision: null, generatedWorkflowId: input.generatedWorkflowId };
+      } else {
+        const draft = await loadDraft(client, tenantId, input.draftId, true);
+        requireRevision(draft, input.expectedRevision);
+        const approval = await client.query('SELECT 1 FROM draft_approvals WHERE tenant_id = $1 AND draft_id = $2 AND revision = $3 AND simulator_version = $4 AND revision_hash = $5',
+          [tenantId, draft.id, draft.revision, SIMULATOR_VERSION, draft.revisionHash]);
+        if (!approval.rowCount) throw new HttpError(409, 'APPROVAL_REQUIRED', 'Approve this exact draft revision before publishing.');
+        const review = await reviewDraft(client, draft);
+        manifest = { schemaVersion: 1, scenarioId: draft.scenarioId, scenarioRevision: draft.scenarioRevision, draftId: draft.id,
+          draftRevision: draft.revision, revisionHash: draft.revisionHash, parameters: review.effectiveParameters, workflow: review.effectiveWorkflow };
+        source = { draftId: draft.id, draftRevision: draft.revision, scenarioId: draft.scenarioId, scenarioRevision: draft.scenarioRevision, generatedWorkflowId: null };
+      }
+      const nodes = (manifest.workflow as { nodes: { capability: { name: string } }[] }).nodes;
+      if (nodes.filter(node => node.capability.name === 'whatsapp.message').length !== 1) throw new HttpError(422, 'NOT_PUBLISHABLE', 'Only workflows that start from a WhatsApp message can be published.');
       const hash = createHash('sha256').update(JSON.stringify(manifest)).digest('hex');
       try {
-        const inserted = await client.query(`INSERT INTO workflow_publications(tenant_id, id, draft_id, draft_revision, scenario_id, scenario_revision, whatsapp_number_id, manifest, manifest_hash, published_by)
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING ${columns}`,
-        [tenantId, input.id, draft.id, draft.revision, draft.scenarioId, draft.scenarioRevision, input.whatsappNumberId, manifest, hash, actor]);
+        const inserted = await client.query(`INSERT INTO workflow_publications(tenant_id, id, draft_id, draft_revision, scenario_id, scenario_revision, generated_workflow_id, whatsapp_number_id, manifest, manifest_hash, published_by)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING ${columns}`,
+        [tenantId, input.id, source.draftId, source.draftRevision, source.scenarioId, source.scenarioRevision, source.generatedWorkflowId, input.whatsappNumberId, manifest, hash, actor]);
         return { status: 201, row: inserted.rows[0] };
       } catch (error) {
         if ((error as { code?: string }).code === '23505') throw new HttpError(409, 'NUMBER_BUSY', 'Pause the live workflow on this number before publishing another.');

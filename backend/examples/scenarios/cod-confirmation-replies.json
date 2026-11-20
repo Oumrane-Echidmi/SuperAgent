@@ -1,0 +1,274 @@
+{
+  "id": "5b0c2d3e-0a11-4c1e-9a10-000000000001",
+  "definition": {
+    "name": "COD confirmation with replies",
+    "description": "Reads a customer's WhatsApp reply to a pending cash-on-delivery order, records the confirmation or refusal, and answers the customer in French and Darija. Anything unclear is handed to a person.",
+    "workflow": {
+      "schemaVersion": 2,
+      "nodes": [
+        {
+          "id": "receive",
+          "capability": {
+            "name": "whatsapp.message",
+            "version": "1.0.0"
+          },
+          "inputs": {}
+        },
+        {
+          "id": "is_confirm",
+          "capability": {
+            "name": "cod.text.intent",
+            "version": "1.0.0"
+          },
+          "inputs": {
+            "text": {
+              "kind": "output",
+              "nodeId": "receive",
+              "field": "text"
+            },
+            "intent": {
+              "kind": "literal",
+              "value": "confirm"
+            }
+          }
+        },
+        {
+          "id": "confirm",
+          "capability": {
+            "name": "cod.order.confirm",
+            "version": "1.0.0"
+          },
+          "inputs": {
+            "evidence": {
+              "kind": "output",
+              "nodeId": "receive",
+              "field": "text"
+            }
+          }
+        },
+        {
+          "id": "reply_confirmed",
+          "capability": {
+            "name": "whatsapp.reply",
+            "version": "1.0.0"
+          },
+          "inputs": {
+            "text": {
+              "kind": "literal",
+              "value": "Merci ! Votre commande est confirmée. / شكرا! الطلب ديالك تأكد."
+            }
+          }
+        },
+        {
+          "id": "confirmed",
+          "capability": {
+            "name": "workflow.end",
+            "version": "1.0.0"
+          },
+          "inputs": {
+            "reason": {
+              "kind": "literal",
+              "value": "Order confirmed"
+            }
+          }
+        },
+        {
+          "id": "is_decline",
+          "capability": {
+            "name": "cod.text.intent",
+            "version": "1.0.0"
+          },
+          "inputs": {
+            "text": {
+              "kind": "output",
+              "nodeId": "receive",
+              "field": "text"
+            },
+            "intent": {
+              "kind": "literal",
+              "value": "decline"
+            }
+          }
+        },
+        {
+          "id": "decline",
+          "capability": {
+            "name": "cod.order.decline",
+            "version": "1.0.0"
+          },
+          "inputs": {
+            "evidence": {
+              "kind": "output",
+              "nodeId": "receive",
+              "field": "text"
+            }
+          }
+        },
+        {
+          "id": "reply_declined",
+          "capability": {
+            "name": "whatsapp.reply",
+            "version": "1.0.0"
+          },
+          "inputs": {
+            "text": {
+              "kind": "literal",
+              "value": "C'est noté, la commande est annulée. / تسجل، الطلب تلغى."
+            }
+          }
+        },
+        {
+          "id": "declined",
+          "capability": {
+            "name": "workflow.end",
+            "version": "1.0.0"
+          },
+          "inputs": {
+            "reason": {
+              "kind": "literal",
+              "value": "Order declined"
+            }
+          }
+        },
+        {
+          "id": "reply_handoff",
+          "capability": {
+            "name": "whatsapp.reply",
+            "version": "1.0.0"
+          },
+          "inputs": {
+            "text": {
+              "kind": "literal",
+              "value": "Merci pour votre message, nous revenons vers vous très vite. / شكرا على الرسالة، غادي نجاوبوك فأقرب وقت."
+            }
+          }
+        },
+        {
+          "id": "handoff",
+          "capability": {
+            "name": "workflow.end",
+            "version": "1.0.0"
+          },
+          "inputs": {
+            "reason": {
+              "kind": "literal",
+              "value": "Needs a person"
+            }
+          }
+        }
+      ],
+      "edges": [
+        {
+          "from": "receive",
+          "to": "is_confirm",
+          "route": "next"
+        },
+        {
+          "from": "is_confirm",
+          "to": "confirm",
+          "route": "match"
+        },
+        {
+          "from": "is_confirm",
+          "to": "is_decline",
+          "route": "default"
+        },
+        {
+          "from": "confirm",
+          "to": "reply_confirmed",
+          "route": "next"
+        },
+        {
+          "from": "reply_confirmed",
+          "to": "confirmed",
+          "route": "next"
+        },
+        {
+          "from": "is_decline",
+          "to": "decline",
+          "route": "match"
+        },
+        {
+          "from": "is_decline",
+          "to": "reply_handoff",
+          "route": "default"
+        },
+        {
+          "from": "decline",
+          "to": "reply_declined",
+          "route": "next"
+        },
+        {
+          "from": "reply_declined",
+          "to": "declined",
+          "route": "next"
+        },
+        {
+          "from": "reply_handoff",
+          "to": "handoff",
+          "route": "next"
+        }
+      ]
+    },
+    "fixtures": [
+      {
+        "name": "customer confirms",
+        "event": {
+          "text": "Oui, je confirme",
+          "customerPhone": "212600000000"
+        },
+        "expectedPath": [
+          "receive",
+          "is_confirm",
+          "confirm",
+          "reply_confirmed",
+          "confirmed"
+        ],
+        "expectedReason": "Order confirmed"
+      },
+      {
+        "name": "customer declines",
+        "event": {
+          "text": "non merci",
+          "customerPhone": "212600000000"
+        },
+        "expectedPath": [
+          "receive",
+          "is_confirm",
+          "is_decline",
+          "decline",
+          "reply_declined",
+          "declined"
+        ],
+        "expectedReason": "Order declined"
+      },
+      {
+        "name": "unclear reply",
+        "event": {
+          "text": "c'est combien la livraison ?",
+          "customerPhone": "212600000000"
+        },
+        "expectedPath": [
+          "receive",
+          "is_confirm",
+          "is_decline",
+          "reply_handoff",
+          "handoff"
+        ],
+        "expectedReason": "Needs a person"
+      }
+    ],
+    "matching": {
+      "phrases": [
+        "confirm orders on whatsapp",
+        "confirmer les commandes",
+        "confirmation de commande",
+        "تأكيد الطلبيات"
+      ],
+      "languages": [
+        "fr",
+        "darija"
+      ]
+    }
+  }
+}

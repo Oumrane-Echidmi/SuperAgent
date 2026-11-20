@@ -17,7 +17,7 @@ handle the repetitive replies, with a human always one step away.
   <a href="https://github.com/Oumrane-Echidmi/SuperAgent/pulls"><img src="https://img.shields.io/badge/PRs-welcome-brightgreen" alt="PRs welcome" /></a>
 </p>
 
-[Quick start](#quick-start) · [Features](#features) · [How it works](#how-it-works) · [Screenshots](#demo--screenshots) · [API reference](docs/API.md) · [Developer guide](docs/DEVELOPMENT.md) · [Roadmap](#roadmap) · [Contributing](#contributing)
+[Quick start](#quick-start) · [Features](#features) · [Automation guide](#automation-guide) · [How it works](#how-it-works) · [Screenshots](#demo--screenshots) · [API reference](docs/API.md) · [Developer guide](docs/DEVELOPMENT.md) · [Roadmap](#roadmap) · [Contributing](#contributing)
 
 </div>
 
@@ -34,10 +34,11 @@ customer confirmed, and what still needs a person**. A React web app, a Flutter
 mobile client, and a TypeScript API share that record. Automation is opt-in,
 reviewed before it goes live, and leaves a step-by-step audit trail.
 
-> **Status: early and moving fast.** The order workspace, WhatsApp intake, and
-> the workflow runtime work end to end in tests. Automated replies to
-> customers, a hosted deployment, and verified Android device runs are still
-> ahead. See the [roadmap](#roadmap).
+> **Status: early and moving fast.** The order workspace, WhatsApp intake and
+> replies, the scenario library, AI-generated workflows and the durable runtime
+> work end to end in automated tests against a real database. Live Meta and
+> OpenAI calls, a hosted deployment, and verified Android device runs are still
+> ahead. See the [roadmap](#roadmap) and the [automation guide](#automation-guide).
 
 ## Features
 
@@ -47,10 +48,13 @@ reviewed before it goes live, and leaves a step-by-step audit trail.
 | 📦 **COD order management** | Manual order entry, integer-centime pricing, saved summaries, and customer decisions bound to the exact reviewed revision. |
 | 📊 **Daily outcomes** | Pending / confirmed / declined counts, confirmation rate, confirmed order value, and outstanding sheet sync. |
 | 💬 **WhatsApp intake** | Signature-verified Meta Cloud API webhook, one number per business, deduplicated message storage. |
+| 💬 **Replies** | Workflows answer customers on WhatsApp through a durable outbox with retries and backoff. |
 | 🤖 **Reviewed automation** | Pick a released scenario, simulate it, approve the exact revision, then publish it to a number. Pause any time. |
+| 📚 **Scenario library** | Order confirmation, support triage, appointment requests, and welcome / opt-out, ready to release. |
+| ✨ **AI-generated workflows** | Describe a goal; the assistant builds a workflow from registered steps, which is simulated and needs your approval. It can never touch orders. |
 | ⚙️ **Durable execution** | Every workflow step is journaled in the same transaction as its effect, so a crashed run resumes without repeating work. |
 | 📄 **Google Sheets delivery** | Reviewed rows, explicit destination selection, queued jobs, and read-only reconciliation of uncertain outcomes. |
-| 🧠 **Optional AI Builder** | Consent-based scenario matching and scoped chat through a separate worker. Off by default. |
+| 🧠 **Optional AI Builder** | Consent-based scenario matching and scoped chat through a separate worker, plus workflow generation. Off by default. |
 | 🌍 **Built for Morocco** | French and Darija copy, MAD amounts, and Moroccan time zone defaults. |
 
 **Principles:** a human can always take over · nothing publishes without an
@@ -68,6 +72,7 @@ flowchart LR
     P --> Q
     Q --> R["Durable runner: journaled steps"]
     R -->|confirm / decline| O["Orders and outcomes"]
+    R -->|reply| X["Outbox, then WhatsApp"]
     R -->|unclear| H["Human handoff"]
     O --> G["Google Sheets delivery"]
     O --> W["Web and mobile dashboards"]
@@ -78,8 +83,8 @@ flowchart LR
 3. If a workflow is live on that number, a run is queued.
 4. The runner executes the published manifest one node at a time. Clear replies
    ("oui", "نعم", "non merci") become a recorded confirmation or refusal;
-   anything else is left for a person.
-5. The order, its evidence, and the full run history appear in the clients.
+   anything else is left for a person. Reply steps queue a WhatsApp message.
+5. The order, its evidence, the reply, and the full run history appear in the clients.
 
 The target design, including what is deliberately out of scope, is in
 [ARCHITECTURE.md](ARCHITECTURE.md).
@@ -106,10 +111,11 @@ client are covered in [Getting Started](#getting-started).
 
 ## Contents
 
-- [Features](#features) · [How it works](#how-it-works) · [Quick start](#quick-start)
+- [Features](#features) · [Automation guide](#automation-guide) · [How it works](#how-it-works) · [Quick start](#quick-start)
 - [Demo / Screenshots](#demo--screenshots)
 - [Tech Stack](#tech-stack)
 - [Getting Started](#getting-started)
+- [Automation guide](#automation-guide): capabilities, scenario library, replies, AI-generated workflows
 - [Usage](#usage)
 - [Project Structure](#project-structure)
 - [Roadmap](#roadmap)
@@ -196,6 +202,7 @@ scripts load `backend/.env`; Docker Compose receives it through `--env-file`.
 | `SHEETS_DELIVERY_ENABLED` | `false` by default; enables owner-authorized delivery | Sheets delivery |
 | `SHEETS_WORKER_ENABLED` | `false` by default; enables the separate background delivery worker | Background delivery |
 | `SHEETS_WORKER_DATABASE_PASSWORD`, `SHEETS_WORKER_DATABASE_URL` | Separately provisioned Sheets worker login; password must be at least 24 characters | Background delivery |
+| `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_API_VERSION` | Meta system-user token and Graph API version (default `v21.0`); without the token replies stay queued | Outbound replies |
 | `WORKFLOW_RUNNER_ENABLED` | `false` by default; runs queued WhatsApp workflow executions in the API process | Automated workflows |
 | `WHATSAPP_ENABLED`, `WHATSAPP_APP_SECRET`, `WHATSAPP_VERIFY_TOKEN` | `false` by default; Meta app secret and webhook verify token (each at least 16 characters) | WhatsApp intake |
 
@@ -270,6 +277,195 @@ not supply the development API proxy. The Flutter release build and nginx proxy
 are documented in the [mobile Docker guide](mobile%20flutter/README.md#docker-web-build).
 
 <!-- TODO: Add deployment-specific hosting, HTTPS/reverse-proxy, secret-management, and process/worker instructions once a production target is selected. -->
+
+## Automation guide
+
+This section is the reference for everything that talks to customers. It is
+written for contributors: it explains what exists, why it works the way it does,
+and where the edges are.
+
+### Overview
+
+```mermaid
+flowchart TD
+    subgraph Design
+      L["Scenario library (released by a platform admin)"] --> D["Draft, simulate, approve"]
+      A["AI generator (owner describes a goal)"] --> V["Validate and simulate"] --> AP["Owner approves"]
+    end
+    D --> P["Publish to a WhatsApp number"]
+    AP --> P
+    P --> M["Immutable manifest"]
+    subgraph Runtime
+      W["Signed webhook"] --> Q["Run queue"]
+      M --> R["Durable runner (journaled steps)"]
+      Q --> R
+      R -->|reply step| O["Outbox"]
+      O --> S["Sender (Meta Graph API)"]
+    end
+```
+
+A workflow is a graph of **capabilities**: versioned, typed building blocks
+registered in [`backend/src/capabilities.ts`](backend/src/capabilities.ts). The
+engine never runs model-written code; a generated or released workflow can only
+wire registered capabilities together.
+
+### Capabilities
+
+| Capability | Kind | What it does | Side effect |
+| --- | --- | --- | --- |
+| `whatsapp.message` | trigger | Starts a run from an inbound text message; outputs `text` and `customerPhone`. | none |
+| `cod.text.intent` | condition | Routes `match` when the text is an exact confirm or decline phrase (oui, نعم, non merci, …). | none |
+| `text.keywords` | condition | Routes `match` when the text contains any whole-word keyword from a comma-separated list. | none |
+| `text.equals` / `text.copy` / `manual.text` | utility | Exact comparison, copy, and manual-test trigger. | none |
+| `cod.order.confirm` / `cod.order.decline` | action | Records the customer's decision on the pending order, bound to its reviewed revision. | **orders** |
+| `whatsapp.reply` | action | Queues a text reply to the customer who wrote. | **messages** |
+| `workflow.end` | end | Finishes the run with a reason shown in run history. | none |
+
+Every capability declares a `risk` (`none`, `orders`, `messages`) and an
+`idempotency` mode (`pure` or `keyed`). Adding one means: define the contract
+and fixtures, implement it (pure adapters in `capabilities.ts`, real effects in
+[`workflow-runtime.ts`](backend/src/workflow-runtime.ts)), and add tests.
+
+### Scenario library
+
+Ready-made scenarios live in [`backend/examples/scenarios/`](backend/examples/scenarios/).
+Each one passes validation and simulation with every edge covered
+(`backend/tests/scenario-library.test.ts`).
+
+| Scenario | Use case | Behaviour |
+| --- | --- | --- |
+| `cod-confirmation-replies` | Order confirmation | Confirms or declines the pending order from the customer's reply and answers in French and Darija. Unclear replies go to a person. |
+| `support-triage` | Customer support | Acknowledges every message; gives a more specific holding note for price and delivery questions. Never invents answers. |
+| `appointment-requests` | Appointments | Detects a booking request, asks for day, time and name, and ends the run as "Appointment requested" for staff to confirm. |
+| `welcome-and-opt-out` | Marketing hygiene | Greets new messages and honours STOP / arrêt / إلغاء with a confirmation. |
+
+`cod-confirmation-scenario.json` in `backend/examples/` is the original,
+reply-less variant kept for tests.
+
+Release them as a platform admin (the user must exist and be an admin; see
+`npm run admin:grant`):
+
+```sh
+npm --prefix backend run scenarios:seed -- admin@example.com
+```
+
+The script validates and simulates each file before inserting it and skips
+scenarios that are already released.
+
+> **Limits.** The marketing scenario handles consent words only. There is no
+> blocklist that suppresses later messages and no broadcast or campaign
+> sending. Appointments are *requests*: there is no calendar or availability
+> check. Reply texts are fixed bilingual literals; edit the JSON to change them.
+
+### Outbound WhatsApp replies
+
+A `whatsapp.reply` step never calls Meta itself. It records the message in the
+`whatsapp_outbox` table inside the same transaction as its step journal entry.
+A separate sender loop then delivers it. This keeps network calls out of
+database transactions and makes retries safe.
+
+| Guarantee | How |
+| --- | --- |
+| A replayed step cannot queue a second message | `UNIQUE (tenant_id, run_id, node_id)` on the outbox |
+| Delivery is at-least-once | A claimed message holds a 120-second lease; a crashed sender's message is retried |
+| Transient failures retry with backoff | Network errors, HTTP 429 and 5xx re-queue after 15 s × attempts |
+| Permanent failures stop at once | Other 4xx (bad token, closed window, invalid number) mark the message `FAILED` |
+| Retries are bounded | After 5 attempts the message is `FAILED` (`RETRIES_EXHAUSTED`) |
+
+Because delivery is at-least-once, a crash between Meta accepting a message
+and the database recording it can send that reply twice. That is the standard
+trade-off without provider-side idempotency keys.
+
+**Setup**
+
+1. In Meta's developer dashboard, create a system-user access token with the
+   `whatsapp_business_messaging` permission.
+2. Set `WHATSAPP_ACCESS_TOKEN` (and optionally `WHATSAPP_API_VERSION`, default
+   `v21.0`) in `backend/.env`, plus `WORKFLOW_RUNNER_ENABLED=true`.
+3. Restart the API. The sender starts only when the token is present; without
+   it replies stay `QUEUED`, visible on the WhatsApp page.
+
+Replies are free-text messages, which WhatsApp allows within 24 hours of the
+customer's last message. Every reply here answers an inbound message, so it
+is always inside that window. Template messages (needed to start a
+conversation) are not implemented.
+
+### AI-generated workflows
+
+When no released scenario fits, an owner can describe a goal and let the
+assistant build a workflow ([`workflow-generator.ts`](backend/src/workflow-generator.ts),
+[`generated-workflow-routes.ts`](backend/src/generated-workflow-routes.ts)).
+
+1. **Describe.** `POST /v1/tenants/:id/generated-workflows` with a goal,
+   language and explicit consent to send it to OpenAI. Subject to the daily
+   Builder quota.
+2. **Generate.** The model receives the goal as untrusted data, the catalog of
+   *allowed* capabilities and the wiring rules, and returns a workflow plus 2–10
+   test fixtures.
+3. **Validate.** The result goes through the same structural checks, binding
+   checks and simulator as released scenarios. Every edge must be exercised by
+   a fixture. Invalid output is stored with its reasons so the owner sees why.
+4. **Review and approve.** The owner reads the steps and reply texts and
+   approves the exact result. Approval is one-way and the workflow is immutable
+   afterwards.
+5. **Publish.** `POST /v1/tenants/:id/publications` with `generatedWorkflowId`.
+   It is re-validated at publication time.
+
+**Safety rules, enforced in code (not in the prompt)**
+
+- Generated workflows may **not** use capabilities with `orders` risk. Recording
+  a customer's confirmation stays in human-authored, admin-released scenarios.
+- Only registered capabilities and versions are accepted; anything else is
+  rejected by validation.
+- Exactly one `whatsapp.message` trigger is required.
+- Nothing runs until the owner approves; only owners can generate, approve or
+  publish.
+- The model call happens outside any database transaction and its failures are
+  reported as a generic `GENERATION_FAILED`.
+
+Needs `BUILDER_AI_ENABLED=true`, `OPENAI_API_KEY` and `BUILDER_AI_MODEL`.
+Generation is **not** deterministic; always read the preview.
+
+### End-to-end walkthrough
+
+1. Start the stack ([Getting Started](#getting-started)) with
+   `WHATSAPP_ENABLED=true`, `WHATSAPP_APP_SECRET`, `WHATSAPP_VERIFY_TOKEN`,
+   `WHATSAPP_ACCESS_TOKEN` and `WORKFLOW_RUNNER_ENABLED=true`.
+2. Release the library: `npm --prefix backend run scenarios:seed -- you@example.com`.
+3. In the web app open **WhatsApp** and register your phone number ID.
+4. Open **Builder**, create a draft from *Customer support triage*, then
+   **Simulate**, **Approve**, and **Publish** it to your number.
+5. In Meta's dashboard point the webhook at
+   `https://<your-host>/v1/webhooks/whatsapp` using your verify token.
+6. Message your business number. The run appears under *Recent runs* and the
+   reply under *Replies sent by workflows*.
+
+For COD confirmation, first record an order and keep it pending, using the
+customer's phone number as the conversation reference. Then publish
+*COD confirmation with replies*.
+
+### API summary
+
+| Endpoint | Who | Purpose |
+| --- | --- | --- |
+| `POST /v1/webhooks/whatsapp` · `GET` | Meta | Signed inbound messages; webhook verification |
+| `POST/GET /v1/tenants/:id/whatsapp-numbers` | owner / member | Register and list numbers |
+| `GET /v1/tenants/:id/whatsapp-messages` · `whatsapp-outbox` | member | Inbound messages; queued and sent replies |
+| `POST/GET /v1/tenants/:id/generated-workflows` · `/:id` · `/:id/approve` | owner | Generate, review, approve |
+| `POST/GET /v1/tenants/:id/publications` · `/:id/pause` · `/:id/resume` | owner | Publish a draft or generated workflow to a number |
+| `GET /v1/tenants/:id/workflow-runs` · `/:id` | member | Run history with every journaled step |
+
+Request and error details are in the [API reference](docs/API.md).
+
+### Known limitations
+
+- Replies are plain text only: no templates, media, buttons or lists.
+- Orders are still created by staff. Incoming messages do not create orders.
+- Intent detection is exact-phrase. A long or mixed message always goes to a
+  person, which is deliberate but conservative.
+- One live workflow per WhatsApp number; one Meta access token for the server.
+- The runner and sender run inside the API process. Run a single API instance
+  or accept that leases (not a separate scheduler) coordinate several.
 
 ## Usage
 
@@ -370,11 +566,17 @@ Shipped:
 - [x] Capability validation, scenario releases, draft simulation and approval.
 - [x] Web screens for the Builder, scenario catalog, and Google connections.
 - [x] Signature-verified WhatsApp intake with per-business number registration.
-- [x] COD workflow actions, publication to a number, and journaled durable execution (`WORKFLOW_RUNNER_ENABLED=true`). Sample: [`cod-confirmation-scenario.json`](backend/examples/cod-confirmation-scenario.json).
+- [x] COD workflow actions, publication to a number, and journaled durable execution (`WORKFLOW_RUNNER_ENABLED=true`).
+- [x] Outbound WhatsApp replies through a durable outbox with retries ([guide](#outbound-whatsapp-replies)).
+- [x] Scenario library: confirmation with replies, support triage, appointments, welcome / opt-out ([guide](#scenario-library)).
+- [x] AI-generated workflows with validation, simulation and owner approval ([guide](#ai-generated-workflows)).
+- [x] Web screens for WhatsApp numbers, messages and replies, and for generating workflows.
 
 Next (contributions welcome):
 
-- [ ] Send WhatsApp replies to customers (outbound messages, templates, 24-hour window rules).
+- [ ] WhatsApp template messages, media and interactive buttons (replies are plain text today).
+- [ ] Verify against live Meta and OpenAI accounts; none of the provider calls has run against the real services yet.
+- [ ] Opt-out blocklist, broadcast campaigns, and calendar-backed appointments.
 - [ ] Create order attempts from incoming messages instead of staff entry.
 - [ ] Flutter screens for the Builder, Google connections, and workflow runs.
 - [ ] Web screens for WhatsApp numbers and inbound messages.

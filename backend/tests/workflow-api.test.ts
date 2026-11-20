@@ -14,7 +14,7 @@ test('HTTP exposes a bounded capability catalog and typed validation reports', a
     assert.equal(catalog.status, 200);
     const page = await catalog.json();
     assert.equal(page.data.length, 2);
-    assert.deepEqual(page.pagination, { page: 2, pageSize: 2, totalItems: 8, totalPages: 4 });
+    assert.deepEqual(page.pagination, { page: 2, pageSize: 2, totalItems: 10, totalPages: 5 });
     assert.equal(page.data[0].version, '1.0.0');
     for (const query of ['page=0', 'pageSize=101', 'page=1&page=2', 'unknown=value']) {
       const invalid = await fetch(`${base}/v1/capabilities?${query}`);

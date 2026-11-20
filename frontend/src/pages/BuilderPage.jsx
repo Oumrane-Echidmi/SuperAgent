@@ -217,10 +217,128 @@ function BuilderChat({ base, owner }) {
 }
 
 
+function Generator({ base, owner }) {
+  const { api } = useWorkspace(),
+    { toast } = useToast(),
+    list = useResource(`${base}/generated-workflows`),
+    [busy, setBusy] = useState(false),
+    [error, setError] = useState(""),
+    [consent, setConsent] = useState(false);
+  async function run(fn, message) {
+    setBusy(true);
+    setError("");
+    try {
+      await fn();
+      toast(message);
+      list.reload();
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  function create(event) {
+    event.preventDefault();
+    const form = event.currentTarget,
+      data = new FormData(form);
+    run(async () => {
+      await api(`${base}/generated-workflows`, {
+        method: "POST",
+        body: {
+          id: crypto.randomUUID(),
+          goal: data.get("goal"),
+          language: data.get("language"),
+          consentToOpenAI: true,
+        },
+      });
+      form.reset();
+      setConsent(false);
+    }, "Workflow generated. Review it before approving.");
+  }
+  const approve = (id) =>
+    run(
+      () => api(`${base}/generated-workflows/${id}/approve`, { method: "POST", body: {} }),
+      "Workflow approved.",
+    );
+  return (
+    <section className="live-card">
+      <h2>Describe a new workflow</h2>
+      <p className="live-muted">
+        No ready-made scenario fits? Describe what you want and the assistant
+        builds a workflow from the registered steps. It is simulated
+        automatically and never goes live without your approval. Generated
+        workflows cannot confirm or decline orders.
+      </p>
+      {error && (
+        <p className="live-error" role="alert">
+          {error}
+        </p>
+      )}
+      {owner && (
+        <form className="live-form" onSubmit={create}>
+          <label>
+            What should it do?
+            <textarea name="goal" required maxLength={1000} rows={3} />
+          </label>
+          <label>
+            Language of replies
+            <select name="language">
+              <option value="fr">Français</option>
+              <option value="darija">Darija</option>
+            </select>
+          </label>
+          <label>
+            <input
+              type="checkbox"
+              checked={consent}
+              onChange={(e) => setConsent(e.target.checked)}
+            />{" "}
+            I agree to send this description to OpenAI.
+          </label>
+          <button className="live-primary" disabled={busy || !consent}>
+            {busy ? "Generating…" : "Generate workflow"}
+          </button>
+        </form>
+      )}
+      <ul>
+        {list.data?.data.map((g) => (
+          <li key={g.id}>
+            <strong>{g.status === "READY" ? "Passed simulation" : "Failed checks"}</strong>
+            {g.approvedAt ? " · Approved" : ""} — {g.goal}
+            {g.status === "READY" && (
+              <details>
+                <summary>Review steps and replies</summary>
+                <ol>
+                  {g.workflow.nodes.map((n) => (
+                    <li key={n.id}>
+                      {n.capability.name}
+                      {n.inputs.text?.kind === "literal" && `: “${n.inputs.text.value}”`}
+                      {n.inputs.reason?.kind === "literal" && `: ${n.inputs.reason.value}`}
+                    </li>
+                  ))}
+                </ol>
+              </details>
+            )}
+            {g.status === "INVALID" && (
+              <pre className="live-small">{JSON.stringify(g.report.issues, null, 2)}</pre>
+            )}
+            {owner && g.status === "READY" && !g.approvedAt && (
+              <button className="live-secondary" disabled={busy} onClick={() => approve(g.id)}>
+                Approve
+              </button>
+            )}
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 function Publishing({ base, owner }) {
   const { api } = useWorkspace(),
     { toast } = useToast(),
     drafts = useResource(`${base}/drafts`),
+    generated = useResource(`${base}/generated-workflows`),
     numbers = useResource(`${base}/whatsapp-numbers`),
     publications = useResource(`${base}/publications`),
     runs = useResource(`${base}/workflow-runs`),
@@ -243,15 +361,17 @@ function Publishing({ base, owner }) {
   function publish(event) {
     event.preventDefault();
     const form = new FormData(event.currentTarget),
-      draft = drafts.data.data.find((d) => d.id === form.get("draft"));
+      [kind, id] = String(form.get("draft")).split(":"),
+      draft = drafts.data?.data.find((d) => d.id === id);
     run(
       () =>
         api(`${base}/publications`, {
           method: "POST",
           body: {
             id: crypto.randomUUID(),
-            draftId: draft.id,
-            expectedRevision: draft.revision,
+            ...(kind === "gen"
+              ? { generatedWorkflowId: id }
+              : { draftId: draft.id, expectedRevision: draft.revision }),
             whatsappNumberId: form.get("number"),
           },
         }),
@@ -280,16 +400,23 @@ function Publishing({ base, owner }) {
           {error}
         </p>
       )}
-      {owner && drafts.data?.data.length > 0 && numbers.data?.data.length > 0 && (
+      {owner && numbers.data?.data.length > 0 && (drafts.data?.data.length > 0 || generated.data?.data.some((g) => g.approvedAt)) && (
         <form className="live-form" onSubmit={publish}>
           <label>
             Draft
             <select name="draft">
-              {drafts.data.data.map((d) => (
-                <option key={d.id} value={d.id}>
+              {drafts.data?.data.map((d) => (
+                <option key={d.id} value={`draft:${d.id}`}>
                   {d.name} · rev. {d.revision}
                 </option>
               ))}
+              {generated.data?.data
+                .filter((g) => g.approvedAt)
+                .map((g) => (
+                  <option key={g.id} value={`gen:${g.id}`}>
+                    Generated: {g.goal.slice(0, 50)}
+                  </option>
+                ))}
             </select>
           </label>
           <label>
@@ -309,8 +436,7 @@ function Publishing({ base, owner }) {
       )}
       {owner && numbers.data?.data.length === 0 && (
         <p className="live-muted">
-          Register a WhatsApp number through the API first
-          (/tenants/:id/whatsapp-numbers).
+          Register a WhatsApp number on the WhatsApp page first.
         </p>
       )}
       <h3>Live workflows</h3>
@@ -486,6 +612,7 @@ export default function BuilderPage() {
             onChanged={drafts.reload}
           />
         )}
+        <Generator base={base} owner={owner} />
         <Publishing base={base} owner={owner} />
         <BuilderChat base={base} owner={owner} />
       </div>

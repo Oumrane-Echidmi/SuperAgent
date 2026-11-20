@@ -1,0 +1,160 @@
+{
+  "id": "5b0c2d3e-0a11-4c1e-9a10-000000000004",
+  "definition": {
+    "name": "Welcome and opt-out",
+    "description": "Greets a new customer message and honours opt-out words (STOP, arrêt, إلغاء) with a confirmation. The run history records who opted out; a blocklist and broadcast campaigns are not part of this scenario.",
+    "workflow": {
+      "schemaVersion": 2,
+      "nodes": [
+        {
+          "id": "receive",
+          "capability": {
+            "name": "whatsapp.message",
+            "version": "1.0.0"
+          },
+          "inputs": {}
+        },
+        {
+          "id": "is_stop",
+          "capability": {
+            "name": "text.keywords",
+            "version": "1.0.0"
+          },
+          "inputs": {
+            "text": {
+              "kind": "output",
+              "nodeId": "receive",
+              "field": "text"
+            },
+            "keywords": {
+              "kind": "literal",
+              "value": "stop, arret, arrêt, unsubscribe, desabonner, désabonner, إلغاء, توقف"
+            }
+          }
+        },
+        {
+          "id": "reply_stop",
+          "capability": {
+            "name": "whatsapp.reply",
+            "version": "1.0.0"
+          },
+          "inputs": {
+            "text": {
+              "kind": "literal",
+              "value": "C'est noté, vous ne recevrez plus de messages automatiques. / تسجل، ما غاديش توصلك رسائل أوتوماتيكية."
+            }
+          }
+        },
+        {
+          "id": "stopped",
+          "capability": {
+            "name": "workflow.end",
+            "version": "1.0.0"
+          },
+          "inputs": {
+            "reason": {
+              "kind": "literal",
+              "value": "Opted out"
+            }
+          }
+        },
+        {
+          "id": "reply_welcome",
+          "capability": {
+            "name": "whatsapp.reply",
+            "version": "1.0.0"
+          },
+          "inputs": {
+            "text": {
+              "kind": "literal",
+              "value": "Bienvenue ! Répondez STOP pour ne plus recevoir de messages. / مرحبا! جاوب STOP إلا ما بغيتيش توصلك الرسائل."
+            }
+          }
+        },
+        {
+          "id": "welcomed",
+          "capability": {
+            "name": "workflow.end",
+            "version": "1.0.0"
+          },
+          "inputs": {
+            "reason": {
+              "kind": "literal",
+              "value": "Welcomed"
+            }
+          }
+        }
+      ],
+      "edges": [
+        {
+          "from": "receive",
+          "to": "is_stop",
+          "route": "next"
+        },
+        {
+          "from": "is_stop",
+          "to": "reply_stop",
+          "route": "match"
+        },
+        {
+          "from": "is_stop",
+          "to": "reply_welcome",
+          "route": "default"
+        },
+        {
+          "from": "reply_stop",
+          "to": "stopped",
+          "route": "next"
+        },
+        {
+          "from": "reply_welcome",
+          "to": "welcomed",
+          "route": "next"
+        }
+      ]
+    },
+    "fixtures": [
+      {
+        "name": "opt out",
+        "event": {
+          "text": "STOP",
+          "customerPhone": "212600000000"
+        },
+        "expectedPath": [
+          "receive",
+          "is_stop",
+          "reply_stop",
+          "stopped"
+        ],
+        "expectedReason": "Opted out"
+      },
+      {
+        "name": "new message",
+        "event": {
+          "text": "Salam",
+          "customerPhone": "212600000000"
+        },
+        "expectedPath": [
+          "receive",
+          "is_stop",
+          "reply_welcome",
+          "welcomed"
+        ],
+        "expectedReason": "Welcomed"
+      }
+    ],
+    "matching": {
+      "phrases": [
+        "welcome message",
+        "opt out",
+        "marketing consent",
+        "message de bienvenue",
+        "désinscription"
+      ],
+      "languages": [
+        "fr",
+        "darija"
+      ]
+    }
+  }
+}

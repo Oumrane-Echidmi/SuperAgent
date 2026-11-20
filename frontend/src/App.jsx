@@ -19,6 +19,7 @@ import OrderDetailsPage from "./pages/OrderDetailsPage";
 import BusinessProfilePage from "./pages/BusinessProfilePage";
 import ConnectionsPage, { CallbackPage } from "./pages/ConnectionsPage";
 import BuilderPage from "./pages/BuilderPage";
+import WhatsAppPage from "./pages/WhatsAppPage";
 
 function Preview({ children }) {
   return (
@@ -62,6 +63,7 @@ function Workspace() {
           <Route path="/settings" element={<BusinessProfilePage />} />
           <Route path="/connections" element={<ConnectionsPage />} />
           <Route path="/builder" element={<BuilderPage />} />
+          <Route path="/whatsapp" element={<WhatsAppPage />} />
           <Route
             path="/chat"
             element={

@@ -1,0 +1,160 @@
+{
+  "id": "5b0c2d3e-0a11-4c1e-9a10-000000000003",
+  "definition": {
+    "name": "Appointment requests",
+    "description": "Recognises a booking request on WhatsApp, asks the customer for their preferred day, time and name, and flags the run so staff can confirm the slot. Other messages get a short how-to-book reply.",
+    "workflow": {
+      "schemaVersion": 2,
+      "nodes": [
+        {
+          "id": "receive",
+          "capability": {
+            "name": "whatsapp.message",
+            "version": "1.0.0"
+          },
+          "inputs": {}
+        },
+        {
+          "id": "is_booking",
+          "capability": {
+            "name": "text.keywords",
+            "version": "1.0.0"
+          },
+          "inputs": {
+            "text": {
+              "kind": "output",
+              "nodeId": "receive",
+              "field": "text"
+            },
+            "keywords": {
+              "kind": "literal",
+              "value": "rdv, rendez vous, rendez-vous, reserver, réserver, reservation, réservation, موعد, حجز"
+            }
+          }
+        },
+        {
+          "id": "reply_booking",
+          "capability": {
+            "name": "whatsapp.reply",
+            "version": "1.0.0"
+          },
+          "inputs": {
+            "text": {
+              "kind": "literal",
+              "value": "Avec plaisir ! Indiquez le jour, l'heure souhaitée et votre nom. / بكل سرور! كتب ليا النهار، الوقت والإسم ديالك."
+            }
+          }
+        },
+        {
+          "id": "booking",
+          "capability": {
+            "name": "workflow.end",
+            "version": "1.0.0"
+          },
+          "inputs": {
+            "reason": {
+              "kind": "literal",
+              "value": "Appointment requested"
+            }
+          }
+        },
+        {
+          "id": "reply_help",
+          "capability": {
+            "name": "whatsapp.reply",
+            "version": "1.0.0"
+          },
+          "inputs": {
+            "text": {
+              "kind": "literal",
+              "value": "Pour prendre rendez-vous, écrivez RDV. / باش تحجز موعد، كتب RDV."
+            }
+          }
+        },
+        {
+          "id": "other",
+          "capability": {
+            "name": "workflow.end",
+            "version": "1.0.0"
+          },
+          "inputs": {
+            "reason": {
+              "kind": "literal",
+              "value": "No booking intent"
+            }
+          }
+        }
+      ],
+      "edges": [
+        {
+          "from": "receive",
+          "to": "is_booking",
+          "route": "next"
+        },
+        {
+          "from": "is_booking",
+          "to": "reply_booking",
+          "route": "match"
+        },
+        {
+          "from": "is_booking",
+          "to": "reply_help",
+          "route": "default"
+        },
+        {
+          "from": "reply_booking",
+          "to": "booking",
+          "route": "next"
+        },
+        {
+          "from": "reply_help",
+          "to": "other",
+          "route": "next"
+        }
+      ]
+    },
+    "fixtures": [
+      {
+        "name": "booking request",
+        "event": {
+          "text": "Je voudrais un RDV demain",
+          "customerPhone": "212600000000"
+        },
+        "expectedPath": [
+          "receive",
+          "is_booking",
+          "reply_booking",
+          "booking"
+        ],
+        "expectedReason": "Appointment requested"
+      },
+      {
+        "name": "not a booking",
+        "event": {
+          "text": "Bonjour",
+          "customerPhone": "212600000000"
+        },
+        "expectedPath": [
+          "receive",
+          "is_booking",
+          "reply_help",
+          "other"
+        ],
+        "expectedReason": "No booking intent"
+      }
+    ],
+    "matching": {
+      "phrases": [
+        "appointments",
+        "book appointments",
+        "prise de rendez-vous",
+        "réservation",
+        "حجز المواعيد"
+      ],
+      "languages": [
+        "fr",
+        "darija"
+      ]
+    }
+  }
+}

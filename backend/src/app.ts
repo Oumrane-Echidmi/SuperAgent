@@ -19,10 +19,12 @@ import { sheetDeliveryRoutes } from './sheet-delivery-routes.ts';
 import type { GoogleDeliveryProvider } from './sheet-delivery.ts';
 import { sheetJobRoutes } from './sheet-job-routes.ts';
 import { whatsappRoutes } from './whatsapp.ts';
+import { generatedWorkflowRoutes } from './generated-workflow-routes.ts';
+import type { WorkflowGenerator } from './workflow-generator.ts';
 import { workflowPublicationRoutes } from './workflow-publication-routes.ts';
 import type { WhatsAppConfig } from './whatsapp.ts';
 
-export function createApp(db?: Database, options: { whatsapp?: WhatsAppConfig; builderAiEnabled?: boolean; google?: GoogleConnectionConfig; googleOAuth?: GoogleOAuth; googleSheets?: GoogleSheetsAccess; sheetDeliveryEnabled?: boolean; googleDelivery?: GoogleDeliveryProvider } = {}) {
+export function createApp(db?: Database, options: { whatsapp?: WhatsAppConfig; workflowGenerator?: WorkflowGenerator; builderAiEnabled?: boolean; google?: GoogleConnectionConfig; googleOAuth?: GoogleOAuth; googleSheets?: GoogleSheetsAccess; sheetDeliveryEnabled?: boolean; googleDelivery?: GoogleDeliveryProvider } = {}) {
   const app = express();
   app.disable('x-powered-by');
   app.use((_req, res, next) => {
@@ -39,6 +41,7 @@ export function createApp(db?: Database, options: { whatsapp?: WhatsAppConfig; b
   if (db) app.use('/v1', matchingRoutes(db));
   if (db) app.use('/v1', builderChatRoutes(db, options.builderAiEnabled ?? false));
   if (db) app.use('/v1', whatsappRoutes(db, options.whatsapp));
+  if (db) app.use('/v1', generatedWorkflowRoutes(db, options.workflowGenerator));
   if (db) app.use('/v1', workflowPublicationRoutes(db));
   if (db) app.use('/v1', codRoutes(db));
   if (db) app.use('/v1', codDashboardRoutes(db));

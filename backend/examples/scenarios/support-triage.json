@@ -1,0 +1,235 @@
+{
+  "id": "5b0c2d3e-0a11-4c1e-9a10-000000000002",
+  "definition": {
+    "name": "Customer support triage",
+    "description": "Acknowledges every customer message right away and tells the customer a person will follow up, with a more specific note for price and delivery questions. It never invents answers.",
+    "workflow": {
+      "schemaVersion": 2,
+      "nodes": [
+        {
+          "id": "receive",
+          "capability": {
+            "name": "whatsapp.message",
+            "version": "1.0.0"
+          },
+          "inputs": {}
+        },
+        {
+          "id": "is_price",
+          "capability": {
+            "name": "text.keywords",
+            "version": "1.0.0"
+          },
+          "inputs": {
+            "text": {
+              "kind": "output",
+              "nodeId": "receive",
+              "field": "text"
+            },
+            "keywords": {
+              "kind": "literal",
+              "value": "prix, price, tarif, combien, ثمن, بشحال, شحال"
+            }
+          }
+        },
+        {
+          "id": "reply_price",
+          "capability": {
+            "name": "whatsapp.reply",
+            "version": "1.0.0"
+          },
+          "inputs": {
+            "text": {
+              "kind": "literal",
+              "value": "Merci ! Un conseiller vous envoie le prix très vite. / شكرا! غادي نصيفطو ليك الثمن فأقرب وقت."
+            }
+          }
+        },
+        {
+          "id": "price",
+          "capability": {
+            "name": "workflow.end",
+            "version": "1.0.0"
+          },
+          "inputs": {
+            "reason": {
+              "kind": "literal",
+              "value": "Price question handed to a person"
+            }
+          }
+        },
+        {
+          "id": "is_delivery",
+          "capability": {
+            "name": "text.keywords",
+            "version": "1.0.0"
+          },
+          "inputs": {
+            "text": {
+              "kind": "output",
+              "nodeId": "receive",
+              "field": "text"
+            },
+            "keywords": {
+              "kind": "literal",
+              "value": "livraison, delai, délai, suivi, colis, توصيل, طرد"
+            }
+          }
+        },
+        {
+          "id": "reply_delivery",
+          "capability": {
+            "name": "whatsapp.reply",
+            "version": "1.0.0"
+          },
+          "inputs": {
+            "text": {
+              "kind": "literal",
+              "value": "Merci ! Nous vérifions votre livraison et revenons vers vous. / شكرا! كنتأكدو من التوصيل وغادي نجاوبوك."
+            }
+          }
+        },
+        {
+          "id": "delivery",
+          "capability": {
+            "name": "workflow.end",
+            "version": "1.0.0"
+          },
+          "inputs": {
+            "reason": {
+              "kind": "literal",
+              "value": "Delivery question handed to a person"
+            }
+          }
+        },
+        {
+          "id": "reply_general",
+          "capability": {
+            "name": "whatsapp.reply",
+            "version": "1.0.0"
+          },
+          "inputs": {
+            "text": {
+              "kind": "literal",
+              "value": "Merci pour votre message, un conseiller vous répond très vite. / شكرا على الرسالة، غادي يجاوبك واحد من الفريق."
+            }
+          }
+        },
+        {
+          "id": "general",
+          "capability": {
+            "name": "workflow.end",
+            "version": "1.0.0"
+          },
+          "inputs": {
+            "reason": {
+              "kind": "literal",
+              "value": "Handed to a person"
+            }
+          }
+        }
+      ],
+      "edges": [
+        {
+          "from": "receive",
+          "to": "is_price",
+          "route": "next"
+        },
+        {
+          "from": "is_price",
+          "to": "reply_price",
+          "route": "match"
+        },
+        {
+          "from": "is_price",
+          "to": "is_delivery",
+          "route": "default"
+        },
+        {
+          "from": "reply_price",
+          "to": "price",
+          "route": "next"
+        },
+        {
+          "from": "is_delivery",
+          "to": "reply_delivery",
+          "route": "match"
+        },
+        {
+          "from": "is_delivery",
+          "to": "reply_general",
+          "route": "default"
+        },
+        {
+          "from": "reply_delivery",
+          "to": "delivery",
+          "route": "next"
+        },
+        {
+          "from": "reply_general",
+          "to": "general",
+          "route": "next"
+        }
+      ]
+    },
+    "fixtures": [
+      {
+        "name": "price question",
+        "event": {
+          "text": "C'est quoi le prix ?",
+          "customerPhone": "212600000000"
+        },
+        "expectedPath": [
+          "receive",
+          "is_price",
+          "reply_price",
+          "price"
+        ],
+        "expectedReason": "Price question handed to a person"
+      },
+      {
+        "name": "delivery question",
+        "event": {
+          "text": "Où est mon colis",
+          "customerPhone": "212600000000"
+        },
+        "expectedPath": [
+          "receive",
+          "is_price",
+          "is_delivery",
+          "reply_delivery",
+          "delivery"
+        ],
+        "expectedReason": "Delivery question handed to a person"
+      },
+      {
+        "name": "anything else",
+        "event": {
+          "text": "Bonjour",
+          "customerPhone": "212600000000"
+        },
+        "expectedPath": [
+          "receive",
+          "is_price",
+          "is_delivery",
+          "reply_general",
+          "general"
+        ],
+        "expectedReason": "Handed to a person"
+      }
+    ],
+    "matching": {
+      "phrases": [
+        "customer support",
+        "answer customer questions",
+        "support client",
+        "répondre aux clients",
+        "دعم الزبناء"
+      ],
+      "languages": [
+        "fr",
+        "darija"
+      ]
+    }
+  }
+}
