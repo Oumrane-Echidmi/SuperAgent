@@ -14,10 +14,10 @@ export interface Capability {
   readonly event: Fields;
   readonly connectionType: null;
   readonly requiredScopes: readonly string[];
-  readonly risk: 'none';
+  readonly risk: 'none' | 'orders';
   readonly timeoutMs: number;
   readonly retry: 'never';
-  readonly idempotency: 'pure';
+  readonly idempotency: 'pure' | 'keyed';
   readonly implementation: string;
   readonly fixtures: readonly Fixture[];
 }
@@ -28,6 +28,18 @@ function freeze<T>(value: T): T {
     Object.freeze(value);
   }
   return value;
+}
+
+
+const normalize = (value: string) => value.normalize('NFKC').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+const CONFIRM = ['oui', 'ok', 'okay', 'confirme', 'je confirme', 'oui je confirme', 'oui confirme', 'd accord', 'yes', 'wah', 'waha', 'iyeh', 'نعم', 'واه', 'ايه', 'أكد', 'اكد', 'موافق'];
+const DECLINE = ['non', 'non merci', 'annule', 'j annule', 'no', 'la', 'la chokran', 'لا', 'الغي', 'ألغي', 'ما بغيتش', 'مابغيتش'];
+// Exact phrase match only: anything else (including mixed or longer messages) stays for a human.
+export function classifyIntent(text: string): 'confirm' | 'decline' | 'unclear' {
+  const value = normalize(text);
+  if (CONFIRM.includes(value)) return 'confirm';
+  if (DECLINE.includes(value)) return 'decline';
+  return 'unclear';
 }
 
 const stringField = { type: 'string' } as const;
@@ -52,6 +64,30 @@ const definitions: { contract: Capability; execute: (inputs: Record<string, Scal
       const matches = inputs.actual === inputs.expected;
       return { outputs: { matches }, route: matches ? 'match' : 'default' };
     } },
+  { contract: { ...common, name: 'whatsapp.message', family: 'trigger', implementation: 'builtin/whatsapp.message@1.0.0',
+    inputs: {}, outputs: { text: stringField, customerPhone: stringField }, event: { text: stringField, customerPhone: stringField },
+    fixtures: [{ inputs: {}, event: { text: 'Oui', customerPhone: '212600000000' }, result: { outputs: { text: 'Oui', customerPhone: '212600000000' }, route: 'next' } }] },
+    execute: (_inputs, event) => ({ outputs: { text: event.text!, customerPhone: event.customerPhone! }, route: 'next' }) },
+  { contract: { ...common, name: 'cod.text.intent', family: 'condition', implementation: 'builtin/cod.text.intent@1.0.0',
+    inputs: { text: stringField, intent: stringField }, outputs: { matches: { type: 'boolean' } }, event: {},
+    fixtures: [
+      { inputs: { text: 'Oui, je confirme', intent: 'confirm' }, result: { outputs: { matches: true }, route: 'match' } },
+      { inputs: { text: 'نعم', intent: 'confirm' }, result: { outputs: { matches: true }, route: 'match' } },
+      { inputs: { text: 'non merci', intent: 'confirm' }, result: { outputs: { matches: false }, route: 'default' } },
+      { inputs: { text: 'non merci', intent: 'decline' }, result: { outputs: { matches: true }, route: 'match' } },
+    ] },
+    execute: inputs => {
+      const matches = classifyIntent(String(inputs.text)) === inputs.intent;
+      return { outputs: { matches }, route: matches ? 'match' : 'default' };
+    } },
+  { contract: { ...common, risk: 'orders', idempotency: 'keyed', name: 'cod.order.confirm', family: 'action', implementation: 'runtime/cod.order.confirm@1.0.0',
+    inputs: { evidence: stringField }, outputs: { orderId: stringField }, event: {},
+    fixtures: [{ inputs: { evidence: 'Oui' }, result: { outputs: { orderId: 'simulated-order' }, route: 'next' } }] },
+    execute: () => ({ outputs: { orderId: 'simulated-order' }, route: 'next' }) },
+  { contract: { ...common, risk: 'orders', idempotency: 'keyed', name: 'cod.order.decline', family: 'action', implementation: 'runtime/cod.order.decline@1.0.0',
+    inputs: { evidence: stringField }, outputs: { status: stringField }, event: {},
+    fixtures: [{ inputs: { evidence: 'Non' }, result: { outputs: { status: 'DECLINED' }, route: 'next' } }] },
+    execute: () => ({ outputs: { status: 'DECLINED' }, route: 'next' }) },
   { contract: { ...common, name: 'workflow.end', family: 'end', implementation: 'builtin/workflow.end@1.0.0',
     inputs: { reason: stringField }, outputs: {}, event: {},
     fixtures: [{ inputs: { reason: 'complete' }, result: { outputs: {}, route: null } }] },

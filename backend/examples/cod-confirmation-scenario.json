@@ -1,0 +1,40 @@
+{
+  "definition": {
+    "name": "COD WhatsApp confirmation",
+    "description": "Reads a customer's WhatsApp reply to a pending cash-on-delivery order and records the confirmation or refusal. Anything unclear is left for a person.",
+    "workflow": {
+      "schemaVersion": 2,
+      "nodes": [
+        { "id": "receive", "capability": { "name": "whatsapp.message", "version": "1.0.0" }, "inputs": {} },
+        { "id": "is_confirm", "capability": { "name": "cod.text.intent", "version": "1.0.0" }, "inputs": {
+          "text": { "kind": "output", "nodeId": "receive", "field": "text" }, "intent": { "kind": "literal", "value": "confirm" } } },
+        { "id": "confirm", "capability": { "name": "cod.order.confirm", "version": "1.0.0" }, "inputs": {
+          "evidence": { "kind": "output", "nodeId": "receive", "field": "text" } } },
+        { "id": "confirmed", "capability": { "name": "workflow.end", "version": "1.0.0" }, "inputs": { "reason": { "kind": "literal", "value": "Order confirmed" } } },
+        { "id": "is_decline", "capability": { "name": "cod.text.intent", "version": "1.0.0" }, "inputs": {
+          "text": { "kind": "output", "nodeId": "receive", "field": "text" }, "intent": { "kind": "literal", "value": "decline" } } },
+        { "id": "decline", "capability": { "name": "cod.order.decline", "version": "1.0.0" }, "inputs": {
+          "evidence": { "kind": "output", "nodeId": "receive", "field": "text" } } },
+        { "id": "declined", "capability": { "name": "workflow.end", "version": "1.0.0" }, "inputs": { "reason": { "kind": "literal", "value": "Order declined" } } },
+        { "id": "handoff", "capability": { "name": "workflow.end", "version": "1.0.0" }, "inputs": { "reason": { "kind": "literal", "value": "Needs a person" } } }
+      ],
+      "edges": [
+        { "from": "receive", "to": "is_confirm", "route": "next" },
+        { "from": "is_confirm", "to": "confirm", "route": "match" },
+        { "from": "is_confirm", "to": "is_decline", "route": "default" },
+        { "from": "confirm", "to": "confirmed", "route": "next" },
+        { "from": "is_decline", "to": "decline", "route": "match" },
+        { "from": "is_decline", "to": "handoff", "route": "default" },
+        { "from": "decline", "to": "declined", "route": "next" }
+      ]
+    },
+    "fixtures": [
+      { "name": "customer confirms", "event": { "text": "Oui, je confirme", "customerPhone": "212600000000" },
+        "expectedPath": ["receive", "is_confirm", "confirm", "confirmed"], "expectedReason": "Order confirmed" },
+      { "name": "customer declines", "event": { "text": "non merci", "customerPhone": "212600000000" },
+        "expectedPath": ["receive", "is_confirm", "is_decline", "decline", "declined"], "expectedReason": "Order declined" },
+      { "name": "unclear reply goes to a person", "event": { "text": "c'est combien la livraison ?", "customerPhone": "212600000000" },
+        "expectedPath": ["receive", "is_confirm", "is_decline", "handoff"], "expectedReason": "Needs a person" }
+    ]
+  }
+}

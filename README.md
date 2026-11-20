@@ -138,6 +138,7 @@ scripts load `backend/.env`; Docker Compose receives it through `--env-file`.
 | `SHEETS_DELIVERY_ENABLED` | `false` by default; enables owner-authorized delivery | Sheets delivery |
 | `SHEETS_WORKER_ENABLED` | `false` by default; enables the separate background delivery worker | Background delivery |
 | `SHEETS_WORKER_DATABASE_PASSWORD`, `SHEETS_WORKER_DATABASE_URL` | Separately provisioned Sheets worker login; password must be at least 24 characters | Background delivery |
+| `WORKFLOW_RUNNER_ENABLED` | `false` by default; runs queued WhatsApp workflow executions in the API process | Automated workflows |
 | `WHATSAPP_ENABLED`, `WHATSAPP_APP_SECRET`, `WHATSAPP_VERIFY_TOKEN` | `false` by default; Meta app secret and webhook verify token (each at least 16 characters) | WhatsApp intake |
 
 Keep optional flags disabled until their dependencies are configured. Provider
@@ -315,7 +316,7 @@ were found in the application sources during this documentation review.
 - [x] Connect Builder/catalog client screens on the web (Builder page: catalog, drafts, simulate/approve, consent-based chat). Flutter screens remain.
 - [x] Add a Google OAuth callback client and spreadsheet picker on the web (Connections page; paste a Sheets link). Flutter client remains.
 - [x] Implement verified WhatsApp intake: signed webhook, number registration, deduplicated message storage (`/v1/webhooks/whatsapp`, `/v1/tenants/:id/whatsapp-numbers`, `/whatsapp-messages`). Replies and order extraction are not implemented.
-- [ ] Add registered COD scenario actions, publication, and durable automated workflow execution.
+- [x] Add registered COD scenario actions (`cod.order.confirm`/`decline`, `cod.text.intent`, `whatsapp.message`), publication of approved drafts to a WhatsApp number, and durable journaled workflow execution (`WORKFLOW_RUNNER_ENABLED=true`). Sample scenario: `backend/examples/cod-confirmation-scenario.json`. Automated replies to customers are not sent.
 - [ ] Complete Android APK and device verification.
 
 ## Contributing

@@ -216,6 +216,139 @@ function BuilderChat({ base, owner }) {
   );
 }
 
+
+function Publishing({ base, owner }) {
+  const { api } = useWorkspace(),
+    { toast } = useToast(),
+    drafts = useResource(`${base}/drafts`),
+    numbers = useResource(`${base}/whatsapp-numbers`),
+    publications = useResource(`${base}/publications`),
+    runs = useResource(`${base}/workflow-runs`),
+    [busy, setBusy] = useState(false),
+    [error, setError] = useState("");
+  async function run(fn, message) {
+    setBusy(true);
+    setError("");
+    try {
+      await fn();
+      toast(message);
+      publications.reload();
+      runs.reload();
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  function publish(event) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget),
+      draft = drafts.data.data.find((d) => d.id === form.get("draft"));
+    run(
+      () =>
+        api(`${base}/publications`, {
+          method: "POST",
+          body: {
+            id: crypto.randomUUID(),
+            draftId: draft.id,
+            expectedRevision: draft.revision,
+            whatsappNumberId: form.get("number"),
+          },
+        }),
+      "Workflow published.",
+    );
+  }
+  const toggle = (p) =>
+    run(
+      () =>
+        api(`${base}/publications/${p.id}/${p.status === "ACTIVE" ? "pause" : "resume"}`, {
+          method: "POST",
+          body: {},
+        }),
+      p.status === "ACTIVE" ? "Workflow paused." : "Workflow resumed.",
+    );
+  return (
+    <section className="live-card">
+      <h2>Publish and monitor</h2>
+      <p className="live-muted">
+        A published workflow answers WhatsApp replies on one number. Publish
+        only a draft whose latest revision you approved. WhatsApp must be
+        enabled on the server and the workflow runner started.
+      </p>
+      {error && (
+        <p className="live-error" role="alert">
+          {error}
+        </p>
+      )}
+      {owner && drafts.data?.data.length > 0 && numbers.data?.data.length > 0 && (
+        <form className="live-form" onSubmit={publish}>
+          <label>
+            Draft
+            <select name="draft">
+              {drafts.data.data.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.name} · rev. {d.revision}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            WhatsApp number
+            <select name="number">
+              {numbers.data.data.map((n) => (
+                <option key={n.id} value={n.id}>
+                  {n.displayName}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button className="live-primary" disabled={busy}>
+            Publish approved draft
+          </button>
+        </form>
+      )}
+      {owner && numbers.data?.data.length === 0 && (
+        <p className="live-muted">
+          Register a WhatsApp number through the API first
+          (/tenants/:id/whatsapp-numbers).
+        </p>
+      )}
+      <h3>Live workflows</h3>
+      {publications.data?.data.length === 0 && (
+        <p className="live-muted">Nothing is published yet.</p>
+      )}
+      <ul>
+        {publications.data?.data.map((p) => (
+          <li key={p.id}>
+            {p.status} · draft rev. {p.draftRevision}{" "}
+            {owner && (
+              <button className="live-secondary" disabled={busy} onClick={() => toggle(p)}>
+                {p.status === "ACTIVE" ? "Pause" : "Resume"}
+              </button>
+            )}
+          </li>
+        ))}
+      </ul>
+      <h3>Recent runs</h3>
+      <button className="live-secondary" onClick={runs.reload}>
+        Refresh
+      </button>
+      {runs.data?.data.length === 0 && (
+        <p className="live-muted">No customer messages processed yet.</p>
+      )}
+      <ul>
+        {runs.data?.data.map((r) => (
+          <li key={r.id}>
+            {new Date(r.createdAt).toLocaleString()} · {r.status}
+            {r.reason ? ` · ${r.reason}` : ""}
+            {r.errorCode ? ` · ${r.errorCode}` : ""}
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 export default function BuilderPage() {
   const { tenant, api } = useWorkspace(),
     { toast } = useToast(),
@@ -264,8 +397,7 @@ export default function BuilderPage() {
           <h1>Scenarios and drafts</h1>
           <p className="live-muted">
             Pick a released scenario, review a draft, simulate it with sample
-            data, then approve the exact revision. Publishing and WhatsApp are
-            not available yet.
+            data, then approve the exact revision. Approved drafts can be published to a WhatsApp number below.
           </p>
         </header>
         <ResourceState resource={scenarios} />
@@ -354,6 +486,7 @@ export default function BuilderPage() {
             onChanged={drafts.reload}
           />
         )}
+        <Publishing base={base} owner={owner} />
         <BuilderChat base={base} owner={owner} />
       </div>
     </Page>

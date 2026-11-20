@@ -59,6 +59,13 @@ export class Database {
       return work(client, userId);
     });
   }
+  // For background workers: act as an already-authorised user (a publisher) under the normal row policies.
+  async actingAs<T>(userId: string, work: (client: PoolClient) => Promise<T>) {
+    return this.transaction(async client => {
+      await client.query("SELECT set_config('app.user_id', $1, true)", [userId]);
+      return work(client);
+    });
+  }
   async consumeAuthAttempt(key: string) {
     // Autocommit keeps attempts recorded even when credential verification fails.
     const result = await this.pool.query(`INSERT INTO auth_limits AS l(key, attempts, window_start)

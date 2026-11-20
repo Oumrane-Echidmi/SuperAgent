@@ -19,6 +19,7 @@ import { sheetDeliveryRoutes } from './sheet-delivery-routes.ts';
 import type { GoogleDeliveryProvider } from './sheet-delivery.ts';
 import { sheetJobRoutes } from './sheet-job-routes.ts';
 import { whatsappRoutes } from './whatsapp.ts';
+import { workflowPublicationRoutes } from './workflow-publication-routes.ts';
 import type { WhatsAppConfig } from './whatsapp.ts';
 
 export function createApp(db?: Database, options: { whatsapp?: WhatsAppConfig; builderAiEnabled?: boolean; google?: GoogleConnectionConfig; googleOAuth?: GoogleOAuth; googleSheets?: GoogleSheetsAccess; sheetDeliveryEnabled?: boolean; googleDelivery?: GoogleDeliveryProvider } = {}) {
@@ -38,6 +39,7 @@ export function createApp(db?: Database, options: { whatsapp?: WhatsAppConfig; b
   if (db) app.use('/v1', matchingRoutes(db));
   if (db) app.use('/v1', builderChatRoutes(db, options.builderAiEnabled ?? false));
   if (db) app.use('/v1', whatsappRoutes(db, options.whatsapp));
+  if (db) app.use('/v1', workflowPublicationRoutes(db));
   if (db) app.use('/v1', codRoutes(db));
   if (db) app.use('/v1', codDashboardRoutes(db));
   if (db) app.use('/v1', googleConnectionRoutes(db, options.google, options.googleOAuth));
