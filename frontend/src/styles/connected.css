@@ -3,7 +3,7 @@
   display: grid;
   place-items: center;
   padding: 32px;
-  background: radial-gradient(ellipse at 50% 0%, #27201e, var(--bg) 65%);
+  background: var(--bg);
 }
 .sign-in-card {
   width: min(100%, 420px);
@@ -237,7 +237,7 @@
   padding: 4px 0 18px;
 }
 .live-order-column {
-  background: #141110;
+  background: var(--surface-1);
   border: 1px solid var(--border);
   border-radius: var(--r-lg);
   min-height: 280px;

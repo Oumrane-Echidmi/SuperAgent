@@ -1,0 +1,106 @@
+.workspace-brand-logo {
+  display: block;
+  width: 128px;
+  height: auto;
+  filter: invert(1);
+  flex-shrink: 0;
+}
+.sidebar .sidebar-brand {
+  height: auto;
+  min-height: 94px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 10px;
+  padding: 8px 12px;
+  margin-bottom: 14px;
+}
+.sidebar-brand .brand-name {
+  max-width: 100%;
+  color: var(--text-3);
+  font-size: 11px;
+  font-weight: 400;
+}
+.workspace-new-chat {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 42px;
+  margin: 0 4px;
+  border: 1px solid #505050;
+  border-radius: 11px;
+  color: var(--text-1);
+}
+.workspace-new-chat:hover {
+  background: var(--surface-1);
+  border-color: #777;
+}
+.sign-in .live-brand {
+  justify-content: center;
+  margin-bottom: 38px;
+}
+.sign-in .workspace-brand-logo {
+  width: 180px;
+}
+.live-preview {
+  color: var(--text-3);
+  background: var(--surface-1);
+}
+
+/* Neutral surfaces for the original preview pages as well as connected screens. */
+.brain-card,
+.brain-node,
+.brain-node--profile,
+.brain-node--review,
+.wf-approval,
+.wf-card,
+.canvas-node,
+.canvas-node--notes,
+.canvas-node--generate,
+.canvas-node--video,
+.insight {
+  background: var(--surface-1);
+  border-color: var(--border-strong);
+}
+.brain-card:hover,
+.wf-card:hover {
+  background: var(--surface-2);
+}
+.canvas-viewport {
+  background: var(--bg);
+}
+.insight::before {
+  border-color: transparent var(--surface-2) transparent transparent;
+}
+.insight p {
+  color: var(--text-2);
+}
+
+@media (min-width: 521px) {
+  .sidebar {
+    padding: 20px 16px 16px;
+  }
+}
+@media (max-width: 520px) {
+  .sidebar .sidebar-brand {
+    min-height: 44px;
+    height: auto;
+    flex-direction: row;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 12px;
+    margin-bottom: 0;
+    padding: 0;
+  }
+  .sidebar .workspace-brand-logo {
+    width: 80px;
+  }
+  .sidebar-brand .brand-name {
+    max-width: 130px;
+  }
+  .workspace-new-chat {
+    display: none;
+  }
+}

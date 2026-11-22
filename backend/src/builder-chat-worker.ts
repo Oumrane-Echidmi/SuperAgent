@@ -4,7 +4,7 @@ import { Database } from './database.ts';
 import { AiFailure, BUILDER_PROMPT_VERSION, catalogForModel, validateExtraction } from './builder-ai.ts';
 import type { AiCatalogEntry, BuilderAiInput, BuilderAiProvider, BuilderAiResponse, BuilderAiResult } from './builder-ai.ts';
 
-interface Job { tenant_id: string; session_id: string; id: string; revision: number; text: string; prompt_version: string; created_by: string; leaseId: string }
+interface Job { tenant_id: string; session_id: string; id: string; revision: number; text: string; requested_model: string | null; prompt_version: string; created_by: string; leaseId: string }
 async function ownerStillActive(client: PoolClient, job: Job) {
   await client.query("SELECT set_config('app.user_id', $1, true)", [job.created_by]);
   const role = await client.query("SELECT 1 FROM memberships WHERE tenant_id = $1 AND user_id = $2 AND role = 'OWNER'", [job.tenant_id, job.created_by]);
@@ -14,14 +14,15 @@ async function prepare(db: Database, job: Job) {
   return db.transaction(async client => {
     if (!await ownerStillActive(client, job)) throw new AiFailure('AUTHORIZATION_REVOKED');
     if (job.prompt_version !== BUILDER_PROMPT_VERSION) throw new AiFailure('PROMPT_VERSION_CHANGED');
-    const session = await client.query('SELECT language, consent_to_openai FROM builder_chat_sessions WHERE tenant_id = $1 AND id = $2', [job.tenant_id, job.session_id]);
+    const session = await client.query('SELECT language, consent_to_openai, consent_to_mcp FROM builder_chat_sessions WHERE tenant_id = $1 AND id = $2', [job.tenant_id, job.session_id]);
     if (!session.rowCount || !session.rows[0].consent_to_openai) throw new AiFailure('CONSENT_REQUIRED');
     const history = await client.query<{ text: string; result: BuilderAiResult }>(`SELECT text, result FROM builder_chat_turns
       WHERE tenant_id = $1 AND session_id = $2 AND revision < $3 AND status = 'SUCCEEDED' ORDER BY revision DESC LIMIT 5`, [job.tenant_id, job.session_id, job.revision]);
     const releases = await client.query<AiCatalogEntry>(`SELECT DISTINCT ON (scenario_id) scenario_id AS "scenarioId", revision, definition
       FROM scenario_releases ORDER BY scenario_id, revision DESC LIMIT 21`);
     const catalog = catalogForModel(releases.rows);
-    const input: BuilderAiInput = { language: session.rows[0].language, message: job.text,
+    const input: BuilderAiInput = { language: session.rows[0].language, message: job.text, consentToMcp: session.rows[0].consent_to_mcp === true,
+      ...(job.requested_model ? { model: job.requested_model } : {}),
       history: history.rows.reverse().map(row => ({ message: row.text, result: row.result })), catalog };
     if (Buffer.byteLength(JSON.stringify(input)) > 32000) throw new AiFailure('CONTEXT_LIMIT');
     const saved = await client.query(`UPDATE builder_chat_turns SET catalog_snapshot = $5 WHERE tenant_id = $1 AND session_id = $2 AND id = $3
@@ -39,7 +40,7 @@ export async function processBuilderTurn(db: Database, provider: BuilderAiProvid
   await db.pool.query(`UPDATE builder_chat_turns SET status = 'FAILED', error_code = 'REQUEST_EXPIRED', completed_at = now()
     WHERE status = 'QUEUED' AND created_at < date_trunc('day', now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'`);
   const job = await db.transaction(async client => {
-    const selected = await client.query<Omit<Job, 'leaseId'>>(`SELECT tenant_id, session_id, id, revision, text, prompt_version, created_by
+    const selected = await client.query<Omit<Job, 'leaseId'>>(`SELECT tenant_id, session_id, id, revision, text, requested_model, prompt_version, created_by
       FROM builder_chat_turns WHERE status = 'QUEUED' ORDER BY created_at, tenant_id, session_id, id LIMIT 1 FOR UPDATE SKIP LOCKED`);
     if (!selected.rowCount) return null;
     const row = selected.rows[0]!; const leaseId = randomUUID();

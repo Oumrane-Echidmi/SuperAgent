@@ -5,6 +5,8 @@ import { readWhatsAppConfig } from './whatsapp.ts';
 import { OpenAIWorkflowGenerator } from './workflow-generator.ts';
 import { startWorkflowRunner } from './workflow-runtime.ts';
 import { GraphApiSender, startOutboxSender } from './whatsapp-sender.ts';
+import { readBuilderModels } from './builder-models.ts';
+import { readMcpServers } from './mcp.ts';
 
 const port = Number(process.env.PORT ?? 3000);
 if (!Number.isInteger(port) || port < 1 || port > 65535) {
@@ -13,6 +15,8 @@ if (!Number.isInteger(port) || port < 1 || port > 65535) {
 if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is required. Apply migrations before starting the API.');
 const google = readGoogleConnectionConfig(process.env);
 const whatsapp = readWhatsAppConfig(process.env);
+const builderModels = readBuilderModels(process.env);
+const builderMcpServers = readMcpServers(process.env);
 const sheetDeliveryEnabled=process.env.SHEETS_DELIVERY_ENABLED??'false';
 if(!['true','false'].includes(sheetDeliveryEnabled)||sheetDeliveryEnabled==='true'&&!google)throw new Error('SHEETS_DELIVERY_ENABLED requires valid enabled Google connection configuration.');
 const db = new Database(process.env.DATABASE_URL);
@@ -20,6 +24,9 @@ const builderAiEnabled = process.env.BUILDER_AI_ENABLED ?? 'false';
 if (!['true', 'false'].includes(builderAiEnabled)) throw new Error('BUILDER_AI_ENABLED must be true or false.');
 try {
   await db.checkRuntimeRole();
+  await db.pool.query('SELECT consent_to_mcp FROM builder_chat_sessions LIMIT 0');
+  await db.pool.query('SELECT requested_model FROM builder_chat_turns LIMIT 0');
+  await db.pool.query('SELECT id,kind,content,revision FROM workspace_records LIMIT 0');
   for (const table of ['sessions', 'platform_admins', 'scenarios', 'scenario_releases', 'scenario_audit', 'builder_drafts', 'draft_revisions', 'draft_simulations', 'draft_approvals', 'builder_match_requests', 'builder_chat_sessions', 'builder_chat_turns', 'builder_ai_quota', 'conversations', 'order_attempts', 'order_attempt_revisions', 'order_decision_receipts', 'orders', 'sheet_sync_requests', 'google_connections', 'sheet_destinations', 'sheet_deliveries', 'sheet_delivery_jobs', 'whatsapp_numbers', 'whatsapp_messages', 'workflow_publications', 'workflow_runs', 'workflow_run_steps', 'whatsapp_outbox', 'generated_workflows']) {
     await db.pool.query(`SELECT 1 FROM ${table} LIMIT 0`);
   }
@@ -29,7 +36,7 @@ try {
 }
 const workflowGenerator = builderAiEnabled === 'true' && process.env.OPENAI_API_KEY && process.env.BUILDER_AI_MODEL
   ? new OpenAIWorkflowGenerator({ apiKey: process.env.OPENAI_API_KEY, model: process.env.BUILDER_AI_MODEL }) : undefined;
-const server = createApp(db, { ...(workflowGenerator ? { workflowGenerator } : {}), builderAiEnabled: builderAiEnabled === 'true', sheetDeliveryEnabled:sheetDeliveryEnabled==='true', ...(google ? { google } : {}), ...(whatsapp ? { whatsapp } : {}) }).listen(port, '127.0.0.1', () => {
+const server = createApp(db, { ...(workflowGenerator ? { workflowGenerator } : {}), builderAiEnabled: builderAiEnabled === 'true', builderModels, builderMcpServers, sheetDeliveryEnabled:sheetDeliveryEnabled==='true', ...(google ? { google } : {}), ...(whatsapp ? { whatsapp } : {}) }).listen(port, '127.0.0.1', () => {
   console.log(`SuperAgent development API: http://127.0.0.1:${port}`);
 });
 const runner = process.env.WORKFLOW_RUNNER_ENABLED === 'true' ? startWorkflowRunner(db) : undefined;

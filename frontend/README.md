@@ -39,6 +39,10 @@ Preview inherits the API proxy. Production must separately serve the SPA and rev
 | `/orders/new` | Manual conversation/attempt creation with stable UUIDs and integer prices |
 | `/orders/:id` | Saved summary and staff-recorded confirm/decline/unclear evidence bound to revision/hash |
 | Confirmed order detail | Owners select an existing destination, review its exact row, queue a job and reconcile uncertainty without resending |
+| `/inbox` and `/inbox/:id` | Saved customer conversations and their linked order history |
+| `/docs` and `/brain` | Owner-editable documents and business knowledge notes; members can read |
+| `/agents` | Saved instructions and a model chosen from the backend allowlist |
+| `/workflows` | Persistent node/connection graph drafts with revision checks |
 
 The sidebar uses the actual account/business. Multiple memberships enable workspace switching; reads are aborted and stale responses discarded. Switching is disabled during a write. Sign-out revokes the session and expiry clears the connected workspace. Tokens stay only in React memory, never localStorage/sessionStorage; refreshing requires signing in again. This is a local development login, not a persistent production cookie/session implementation.
 
@@ -46,9 +50,15 @@ Order/decision retries reuse their original IDs and payloads after transport fai
 
 Sheet jobs require an existing configured destination and enabled backend/worker flags. The destination and literal row are displayed before queueing. Active jobs refresh every three seconds. Google consent/callback and file picker UI are not connected yet. Disabled delivery returns a real error, not simulated success; tests never call Google or a model.
 
-## Preview screens
+## AI chat and remaining previews
 
-`/chat`, `/inbox`, `/agents`, `/docs`, `/brain`, `/workflows` and `/canvas` retain the original examples and are labelled Preview on the page and navigation. Interactions stay local and do not save business records or publish agents. Original home/board designs remain at `/preview/home` and `/preview/board`. Builder/catalog, document/knowledge editing, live inbox and Google setup are future UI integration work.
+`/chat` connects to the AI Builder API. Owners select a backend-configured model for each message, consent to OpenAI processing and optionally enable configured public MCP reference tools. The chosen model is persisted by the backend and used by the worker. Saved conversations can be reopened; changing models preserves history. The UI polls queued replies and reuses the original message ID/model when retrying an uncertain request. See [AI_MCP.md](../AI_MCP.md) for configuration and migrations 015/016.
+
+The five connected workspace pages use real, business-scoped records and no example banners. See [WORKSPACE_FEATURES.md](../WORKSPACE_FEATURES.md) for behavior, permissions, API contracts and persistence tests. Saving a workflow/agent configuration does not activate automation; Inbox entries do not send external messages.
+
+`/canvas` remains a labelled preview. Original visual examples remain at `/preview/home`, `/preview/board`, `/preview/chat`, `/preview/inbox`, `/preview/docs`, `/preview/agents`, `/preview/brain` and `/preview/workflows`. Catalog release review, AI knowledge retrieval and Google setup remain separate integration work.
+
+Run `npm.cmd run test:e2e -- --config playwright.ai.config.js` from `frontend` for the standalone AI browser suite. It uses controlled HTTP fixtures and requires no PostgreSQL or API key; it covers model switching, history, pending replies, retry identity, roles and mobile layout.
 
 ## Verification
 

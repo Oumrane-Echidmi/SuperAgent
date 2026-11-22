@@ -1,0 +1,11 @@
+# Chat interface and logo
+
+The `/chat` layout follows the project reference `image.png`: a left navigation and conversation rail, centered welcome area, three useful prompt cards and a bottom composer with model selection. Shared tokens and `styles/brand.css` extend its black surfaces, neutral gray borders, white text and transparent SuperAgent branding to sign-in and every workspace page. Each screen keeps its existing features; status colors and content artwork remain meaningful. On phones the chat rail becomes an opening navigation drawer, while the other pages retain their responsive workspace navigation. Prompt cards fill the composer; model selection, consent, queued replies and safe retries retain the existing backend integration.
+
+Brand asset: `public/brand/superagent-logo.png`. The original black logo is stored with alpha transparency and displayed with CSS inversion on the black interface. The original supplied JPEG is preserved. Verified PNG dimensions: 1732 × 908; corner alpha: 0.
+
+Background removal used the built-in ImageGen editing tool, with the supplied `WhatsApp Image 2026-11-17 at 22.43.28.jpeg` as the edit target. Final prompt:
+
+> Edit target: the attached SuperAgent logo image. Remove ONLY the plain white/off-white background and output a genuinely transparent PNG cutout of the existing black SuperAgent symbol and exact SuperAgent wordmark. Preserve the identity and exact shapes, typography, spelling, relative positions, and black color of the supplied logo, including the five circular nodes around the central node and the small white shine details within the symbol. Do not redesign, redraw stylistically, add shadows, or add any text. Crop away the large empty outside margins so the logo lockup fills the output with a modest clean transparent safety margin. The image is a website brand asset, it must have alpha transparency, no white rectangle or checkerboard printed into the asset. Keep edges clean.
+
+Validation: frontend build and five Playwright checks for model switching, roles, prompt cards, transparent-logo loading, black surfaces, mobile navigation, request retry identity and queued replies. Desktop and mobile screenshots are generated under the ignored `frontend/test-results/` directory.

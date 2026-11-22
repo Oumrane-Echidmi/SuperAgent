@@ -33,10 +33,11 @@ export default function SignInPage() {
     <main className="sign-in">
       <div className="sign-in-card">
         <div className="live-brand">
-          <span className="brand-tile">
-            <img src="/logo-mark-light.png" alt="" width={20} height={20} />
-          </span>
-          SuperAgent
+          <img
+            className="workspace-brand-logo"
+            src="/brand/superagent-logo.png"
+            alt="SuperAgent"
+          />
         </div>
         <p className="live-eyebrow">YOUR BUSINESS WORKSPACE</p>
         <h1>

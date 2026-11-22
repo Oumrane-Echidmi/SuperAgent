@@ -1,12 +1,19 @@
 import { z } from 'zod';
 import { AiFailure, BUILDER_INSTRUCTIONS, extractionSchema } from './builder-ai.ts';
 import type { BuilderAiInput, BuilderAiProvider, BuilderAiResponse } from './builder-ai.ts';
+import { mcpTools, readMcpServers } from './mcp.ts';
+import type { McpServer } from './mcp.ts';
+import { readBuilderModels } from './builder-models.ts';
 
 const usageSchema = z.object({ input_tokens: z.number().int().min(0).max(100000), output_tokens: z.number().int().min(0).max(100000), total_tokens: z.number().int().min(0).max(200000) });
 const responseSchema = z.object({ id: z.string().min(1).max(200), model: z.string().min(1).max(200), status: z.literal('completed'),
   error: z.null().optional(), incomplete_details: z.null().optional(),
   usage: usageSchema, output: z.array(z.discriminatedUnion('type', [
     z.object({ type: z.literal('reasoning') }),
+    z.object({ type: z.literal('mcp_list_tools'), server_label: z.string(),
+      tools: z.array(z.object({ name: z.string() })).max(20), error: z.null().optional() }),
+    z.object({ type: z.literal('mcp_call'), server_label: z.string(), name: z.string(),
+      arguments: z.string().max(16000), output: z.string().max(64000).nullable().optional(), error: z.null().optional() }),
     z.object({ type: z.literal('message'), role: z.literal('assistant'), content: z.array(z.discriminatedUnion('type', [
       z.object({ type: z.literal('output_text'), text: z.string().max(16000) }),
       z.object({ type: z.literal('refusal'), refusal: z.string().optional(), text: z.string().optional() }),
@@ -19,7 +26,8 @@ export function readBuilderWorkerConfig(env: Record<string, string | undefined>)
   if (!parsed.success || !['postgres:', 'postgresql:'].includes(new URL(parsed.data.BUILDER_WORKER_DATABASE_URL).protocol)) {
     throw new Error('Enable Builder AI and configure its model, API key and worker database URL.');
   }
-  return { apiKey: parsed.data.OPENAI_API_KEY, model: parsed.data.BUILDER_AI_MODEL, connectionString: parsed.data.BUILDER_WORKER_DATABASE_URL };
+  return { apiKey: parsed.data.OPENAI_API_KEY, model: parsed.data.BUILDER_AI_MODEL,
+    connectionString: parsed.data.BUILDER_WORKER_DATABASE_URL, mcpServers: readMcpServers(env), models: readBuilderModels(env).models };
 }
 async function boundedJson(response: Response) {
   if (!response.body) throw new AiFailure('PROVIDER_INVALID_RESPONSE');
@@ -38,25 +46,30 @@ async function boundedJson(response: Response) {
   } finally { reader.releaseLock(); }
 }
 export class OpenAIBuilderProvider implements BuilderAiProvider {
-  private readonly config: { apiKey: string; model: string };
+  private readonly config: { apiKey: string; model: string; models?: string[]; mcpServers?: McpServer[] };
   private readonly request: typeof fetch;
-  constructor(config: { apiKey: string; model: string }, request: typeof fetch = fetch) {
+  constructor(config: { apiKey: string; model: string; models?: string[]; mcpServers?: McpServer[] }, request: typeof fetch = fetch) {
     this.config = config; this.request = request;
   }
   async infer(input: BuilderAiInput, signal?: AbortSignal): Promise<BuilderAiResponse> {
+    const requestedModel = input.model ?? this.config.model;
+    if (!(this.config.models ?? [this.config.model]).includes(requestedModel)) throw new AiFailure('MODEL_NOT_ALLOWED');
     const context = JSON.stringify(input);
     if (Buffer.byteLength(context) > 32000) throw new AiFailure('CONTEXT_LIMIT');
     const abort = AbortSignal.any([AbortSignal.timeout(20000), ...(signal ? [signal] : [])]);
     let received = false;
     const schema = z.toJSONSchema(extractionSchema, { target: 'draft-7' });
     delete schema.$schema;
+    const servers = input.consentToMcp === true ? this.config.mcpServers ?? [] : [];
+    const tools = mcpTools(servers);
     try {
       abort.throwIfAborted();
       const response = await this.request('https://api.openai.com/v1/responses', {
         method: 'POST', redirect: 'error', signal: abort,
         headers: { Authorization: `Bearer ${this.config.apiKey}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model: this.config.model, store: false, instructions: BUILDER_INSTRUCTIONS,
-          input: [{ role: 'user', content: [{ type: 'input_text', text: context }] }], tools: [], tool_choice: 'none',
+        body: JSON.stringify({ model: requestedModel, store: false, instructions: BUILDER_INSTRUCTIONS,
+          input: [{ role: 'user', content: [{ type: 'input_text', text: context }] }], tools, tool_choice: tools.length ? 'auto' : 'none',
+          ...(tools.length ? { max_tool_calls: 4 } : {}),
           max_output_tokens: 1800, text: { format: { type: 'json_schema', name: 'builder_extraction', strict: true,
             schema } } }),
       });
@@ -70,6 +83,12 @@ export class OpenAIBuilderProvider implements BuilderAiProvider {
       const envelope = responseSchema.safeParse(await boundedJson(response));
       if (!envelope.success) throw new AiFailure('PROVIDER_INVALID_RESPONSE');
       const { output, usage, id, model } = envelope.data;
+      for (const item of output) {
+        if (item.type !== 'mcp_call' && item.type !== 'mcp_list_tools') continue;
+        const server = servers.find(server => server.label === item.server_label);
+        const names = item.type === 'mcp_call' ? [item.name] : item.tools.map(tool => tool.name);
+        if (!server || names.some(name => !server.tools.includes(name))) throw new AiFailure('PROVIDER_INVALID_RESPONSE');
+      }
       if (usage.total_tokens !== usage.input_tokens + usage.output_tokens) throw new AiFailure('PROVIDER_INVALID_RESPONSE');
       const content = output.flatMap(item => item.type === 'message' ? item.content : []);
       if (content.some(item => item.type === 'refusal')) throw new AiFailure('PROVIDER_REFUSED');

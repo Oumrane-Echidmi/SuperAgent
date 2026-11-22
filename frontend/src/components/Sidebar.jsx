@@ -9,6 +9,7 @@ import {
   BrainCircuit,
   Workflow,
   Palette,
+  Plus,
   ChevronsUpDown,
   UserRound,
   Settings,
@@ -24,8 +25,8 @@ import { useWorkspace } from "../context/WorkspaceContext";
 
 const PRIMARY = [
   { to: "/", label: "Home", icon: Grid2X2, end: true },
-  { to: "/chat", label: "Chat", icon: MessageCircle, badge: "Preview" },
-  { to: "/inbox", label: "Inbox", icon: Inbox, badge: "Preview" },
+  { to: "/chat", label: "Chat", icon: MessageCircle },
+  { to: "/inbox", label: "Inbox", icon: Inbox },
   { to: "/board", label: "Orders", icon: Columns3 },
 ];
 
@@ -34,15 +35,14 @@ const WORKSPACE = [
   { to: "/connections", label: "Connections", icon: Link2 },
   { to: "/builder", label: "Builder", icon: Workflow },
   { to: "/whatsapp", label: "WhatsApp", icon: MessageCircle },
-  { to: "/agents", label: "Agents", icon: Users, badge: "Preview" },
-  { to: "/docs", label: "Docs", icon: FileText, badge: "Preview" },
+  { to: "/agents", label: "Agents", icon: Users },
+  { to: "/docs", label: "Docs", icon: FileText },
   {
     to: "/brain",
     label: "Company Brain",
     icon: BrainCircuit,
-    badge: "Preview",
   },
-  { to: "/workflows", label: "Workflows", icon: Workflow, badge: "Preview" },
+  { to: "/workflows", label: "Workflows", icon: Workflow },
 ];
 
 const LABS = [
@@ -81,11 +81,17 @@ export default function Sidebar() {
 
   return (
     <aside className="sidebar">
-      <Link className="brand" to="/" title={tenant.name}>
-        <span className="brand-tile">
-          <img src="/logo-mark-light.png" alt="" width={18} height={18} />
-        </span>
+      <Link className="brand sidebar-brand" to="/" title={tenant.name}>
+        <img
+          className="workspace-brand-logo"
+          src="/brand/superagent-logo.png"
+          alt="SuperAgent"
+        />
         <span className="brand-name">{tenant.name}</span>
+      </Link>
+      <Link className="workspace-new-chat" to="/chat">
+        <Plus size={16} />
+        New chat
       </Link>
       <button
         className="live-mobile-signout"
@@ -140,7 +146,7 @@ export default function Sidebar() {
               <Avatar
                 name={session.user.email}
                 size={22}
-                palette={["#67e8f9", "#22d3ee", "#0e7490"]}
+                palette={["#4a4a4a", "#303030", "#181818"]}
               />
               <span className="user-name">
                 {session.user.email.split("@")[0]}

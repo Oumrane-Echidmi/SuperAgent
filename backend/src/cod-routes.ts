@@ -30,6 +30,15 @@ export function codRoutes(db: Database) {
       return work(client, tenantId, actor);
     });
   }
+  router.get(base + '/conversations', async (req, res) => {
+    res.json(await scoped(req, async (client, tenantId) => {
+      const { page, pageSize } = parseCod(draftPaginationSchema, req.query);
+      const rows = await client.query(`SELECT ${conversationColumns} FROM conversations WHERE tenant_id=$1
+        ORDER BY created_at DESC,id LIMIT $2 OFFSET $3`, [tenantId, pageSize, (page - 1) * pageSize]);
+      const count = await client.query('SELECT count(*)::integer AS total FROM conversations WHERE tenant_id=$1', [tenantId]);
+      return { data: rows.rows, pagination: { page, pageSize, totalItems: count.rows[0].total, totalPages: Math.ceil(count.rows[0].total / pageSize) } };
+    }));
+  });
   router.post(base + '/conversations', async (req, res) => {
     const result = await scoped(req, async (client, tenantId, actor) => {
       const input = parseCod(conversationSchema, req.body);
@@ -68,9 +77,9 @@ export function codRoutes(db: Database) {
   });
   router.get(base + '/order-attempts', async (req, res) => {
     res.json(await scoped(req, async (client, tenantId) => {
-      const { page, pageSize } = parseCod(draftPaginationSchema, req.query);
-      const rows = await client.query<AttemptRecord>(`${attemptSelect} WHERE a.tenant_id = $1 ORDER BY a.started_at DESC, a.id LIMIT $2 OFFSET $3`, [tenantId, pageSize, (page - 1) * pageSize]);
-      const count = await client.query('SELECT count(*)::integer AS total FROM order_attempts WHERE tenant_id = $1', [tenantId]);
+      const { page, pageSize, conversationId } = parseCod(draftPaginationSchema.extend({ conversationId: z.uuid().optional() }), req.query);
+      const rows = await client.query<AttemptRecord>(`${attemptSelect} WHERE a.tenant_id = $1 AND ($4::uuid IS NULL OR a.conversation_id=$4) ORDER BY a.started_at DESC, a.id LIMIT $2 OFFSET $3`, [tenantId, pageSize, (page - 1) * pageSize, conversationId ?? null]);
+      const count = await client.query('SELECT count(*)::integer AS total FROM order_attempts WHERE tenant_id = $1 AND ($2::uuid IS NULL OR conversation_id=$2)', [tenantId, conversationId ?? null]);
       return { data: rows.rows.map(attemptView), pagination: { page, pageSize, totalItems: count.rows[0].total, totalPages: Math.ceil(count.rows[0].total / pageSize) } };
     }));
   });

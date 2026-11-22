@@ -9,6 +9,8 @@ const stop = new AbortController();
 for (const signal of ['SIGINT', 'SIGTERM'] as const) process.once(signal, () => { stop.abort(); });
 try {
   await db.checkRuntimeRole();
+  await db.pool.query('SELECT consent_to_mcp FROM builder_chat_sessions LIMIT 0');
+  await db.pool.query('SELECT requested_model FROM builder_chat_turns LIMIT 0');
   const role = await db.pool.query('SELECT current_user AS name');
   if (role.rows[0].name !== 'superagent_builder_worker') throw new Error('Use the dedicated Builder worker database login.');
   const provider = new OpenAIBuilderProvider(config);

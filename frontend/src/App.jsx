@@ -3,6 +3,7 @@ import Sidebar from "./components/Sidebar";
 import { ToastProvider } from "./context/ToastContext";
 import HomePage from "./pages/HomePage";
 import ChatPage from "./pages/ChatPage";
+import AIChatPage from "./pages/AIChatPage";
 import InboxPage from "./pages/InboxPage";
 import BoardPage from "./pages/BoardPage";
 import AgentsPage from "./pages/AgentsPage";
@@ -17,6 +18,10 @@ import OrdersPage from "./pages/OrdersPage";
 import NewOrderPage from "./pages/NewOrderPage";
 import OrderDetailsPage from "./pages/OrderDetailsPage";
 import BusinessProfilePage from "./pages/BusinessProfilePage";
+import WorkspaceRecordsPage from "./pages/WorkspaceRecordsPage";
+import ConnectedInboxPage, {
+  ConversationPage,
+} from "./pages/ConnectedInboxPage";
 import ConnectionsPage, { CallbackPage } from "./pages/ConnectionsPage";
 import BuilderPage from "./pages/BuilderPage";
 import WhatsAppPage from "./pages/WhatsAppPage";
@@ -37,6 +42,7 @@ function Workspace() {
     location = useLocation();
   if (location.pathname === "/google/callback")
     return <CallbackPage />;
+  const isChat = location.pathname === "/chat";
   if (!session) return <SignInPage />;
   if (!tenant)
     return (
@@ -52,8 +58,8 @@ function Workspace() {
       </main>
     );
   return (
-    <div className="app">
-      <Sidebar />
+    <div className={`app ${isChat ? "app--ai-chat" : ""}`}>
+      {!isChat && <Sidebar />}
       <main className="main">
         <Routes key={tenant.id}>
           <Route path="/" element={<LiveHomePage />} />
@@ -64,16 +70,35 @@ function Workspace() {
           <Route path="/connections" element={<ConnectionsPage />} />
           <Route path="/builder" element={<BuilderPage />} />
           <Route path="/whatsapp" element={<WhatsAppPage />} />
+          <Route path="/chat" element={<AIChatPage />} />
           <Route
-            path="/chat"
+            path="/preview/chat"
             element={
               <Preview>
                 <ChatPage />
               </Preview>
             }
           />
+          <Route path="/inbox" element={<ConnectedInboxPage />} />
+          <Route path="/inbox/:id" element={<ConversationPage />} />
           <Route
-            path="/inbox"
+            path="/agents"
+            element={<WorkspaceRecordsPage key="agent" kind="agent" />}
+          />
+          <Route
+            path="/docs"
+            element={<WorkspaceRecordsPage key="document" kind="document" />}
+          />
+          <Route
+            path="/brain"
+            element={<WorkspaceRecordsPage key="knowledge" kind="knowledge" />}
+          />
+          <Route
+            path="/workflows"
+            element={<WorkspaceRecordsPage key="workflow" kind="workflow" />}
+          />
+          <Route
+            path="/preview/inbox"
             element={
               <Preview>
                 <InboxPage />
@@ -81,7 +106,7 @@ function Workspace() {
             }
           />
           <Route
-            path="/agents"
+            path="/preview/agents"
             element={
               <Preview>
                 <AgentsPage />
@@ -89,7 +114,7 @@ function Workspace() {
             }
           />
           <Route
-            path="/docs"
+            path="/preview/docs"
             element={
               <Preview>
                 <DocsPage />
@@ -97,7 +122,7 @@ function Workspace() {
             }
           />
           <Route
-            path="/brain"
+            path="/preview/brain"
             element={
               <Preview>
                 <CompanyBrainPage />
@@ -105,7 +130,7 @@ function Workspace() {
             }
           />
           <Route
-            path="/workflows"
+            path="/preview/workflows"
             element={
               <Preview>
                 <WorkflowsPage />

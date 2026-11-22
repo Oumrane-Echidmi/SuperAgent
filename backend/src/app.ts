@@ -23,8 +23,11 @@ import { generatedWorkflowRoutes } from './generated-workflow-routes.ts';
 import type { WorkflowGenerator } from './workflow-generator.ts';
 import { workflowPublicationRoutes } from './workflow-publication-routes.ts';
 import type { WhatsAppConfig } from './whatsapp.ts';
+import type { BuilderModels } from './builder-models.ts';
+import type { McpServer } from './mcp.ts';
+import { workspaceRoutes } from './workspace-routes.ts';
 
-export function createApp(db?: Database, options: { whatsapp?: WhatsAppConfig; workflowGenerator?: WorkflowGenerator; builderAiEnabled?: boolean; google?: GoogleConnectionConfig; googleOAuth?: GoogleOAuth; googleSheets?: GoogleSheetsAccess; sheetDeliveryEnabled?: boolean; googleDelivery?: GoogleDeliveryProvider } = {}) {
+export function createApp(db?: Database, options: { whatsapp?: WhatsAppConfig; workflowGenerator?: WorkflowGenerator; builderAiEnabled?: boolean; builderModels?: BuilderModels; builderMcpServers?: McpServer[]; google?: GoogleConnectionConfig; googleOAuth?: GoogleOAuth; googleSheets?: GoogleSheetsAccess; sheetDeliveryEnabled?: boolean; googleDelivery?: GoogleDeliveryProvider } = {}) {
   const app = express();
   app.disable('x-powered-by');
   app.use((_req, res, next) => {
@@ -39,11 +42,12 @@ export function createApp(db?: Database, options: { whatsapp?: WhatsAppConfig; w
   if (db) app.use('/v1', scenarioRoutes(db));
   if (db) app.use('/v1', builderRoutes(db));
   if (db) app.use('/v1', matchingRoutes(db));
-  if (db) app.use('/v1', builderChatRoutes(db, options.builderAiEnabled ?? false));
+  if (db) app.use('/v1', builderChatRoutes(db, options.builderAiEnabled ?? false, options.builderModels, options.builderMcpServers));
   if (db) app.use('/v1', whatsappRoutes(db, options.whatsapp));
   if (db) app.use('/v1', generatedWorkflowRoutes(db, options.workflowGenerator));
   if (db) app.use('/v1', workflowPublicationRoutes(db));
   if (db) app.use('/v1', codRoutes(db));
+  if (db) app.use('/v1', workspaceRoutes(db, options.builderModels?.models));
   if (db) app.use('/v1', codDashboardRoutes(db));
   if (db) app.use('/v1', googleConnectionRoutes(db, options.google, options.googleOAuth));
   if (db) app.use('/v1', sheetDestinationRoutes(db, options.google, options.googleSheets));

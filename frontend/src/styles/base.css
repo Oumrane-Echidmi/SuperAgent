@@ -65,7 +65,7 @@ svg {
 }
 
 ::selection {
-  background: rgba(168, 85, 247, 0.35);
+  background: rgba(255, 255, 255, 0.2);
   color: #fff;
 }
 
@@ -77,7 +77,7 @@ svg {
 /* Scrollbars */
 * {
   scrollbar-width: thin;
-  scrollbar-color: #3a3532 transparent;
+  scrollbar-color: #333333 transparent;
 }
 *::-webkit-scrollbar {
   width: 10px;
@@ -87,13 +87,13 @@ svg {
   background: transparent;
 }
 *::-webkit-scrollbar-thumb {
-  background: #302c2b;
+  background: #303030;
   border: 3px solid transparent;
   background-clip: content-box;
   border-radius: 999px;
 }
 *::-webkit-scrollbar-thumb:hover {
-  background: #45403c;
+  background: #454545;
   border: 3px solid transparent;
   background-clip: content-box;
 }
@@ -134,7 +134,7 @@ svg {
   width: 28px;
   height: 28px;
   border-radius: 9px;
-  background: linear-gradient(145deg, #312c29, #211e1c);
+  background: var(--surface-2);
   border: 1px solid rgba(255, 255, 255, 0.12);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
   display: grid;
@@ -265,10 +265,11 @@ svg {
 .main {
   flex: 1;
   min-width: 0;
-  margin: 8px 8px 8px 4px;
+  margin: 0;
   background: var(--panel);
-  border: 1px solid #24211f;
-  border-radius: var(--r-lg);
+  border: 0;
+  border-left: 1px solid var(--border);
+  border-radius: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;

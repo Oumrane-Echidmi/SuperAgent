@@ -34,6 +34,11 @@ customer confirmed, and what still needs a person**. A React web app, a Flutter
 mobile client, and a TypeScript API share that record. Automation is opt-in,
 reviewed before it goes live, and leaves a step-by-step audit trail.
 
+The Inbox, Docs, Agents, Company Brain and Workflows screens persist business
+data through the backend. The AI chat supports backend-configured model choices
+and optional consent-based MCP reference tools. See [workspace behavior](WORKSPACE_FEATURES.md)
+and [AI/MCP setup](AI_MCP.md).
+
 > **Status: early and moving fast.** The order workspace, WhatsApp intake and
 > replies, the scenario library, AI-generated workflows and the durable runtime
 > work end to end in automated tests against a real database. Live Meta and

@@ -20,7 +20,7 @@ test('queued Builder chat isolates tenants, fences workers, meters attempts and 
   const maintenance = new pg.Pool({ connectionString: process.env.ADMIN_DATABASE_URL });
   const users = [randomUUID(), randomUUID(), randomUUID()]; const tokens = users.map(() => randomBytes(32).toString('base64url'));
   const tenants = [randomUUID(), randomUUID()]; const sessions = [randomUUID(), randomUUID()]; const scenarioId = randomUUID();
-  const server = createApp(db, { builderAiEnabled: true }).listen(0, '127.0.0.1'); await once(server, 'listening');
+  const server = createApp(db, { builderAiEnabled: true, builderModels: { defaultModel: 'model-fast', models: ['model-fast', 'model-deep'] } }).listen(0, '127.0.0.1'); await once(server, 'listening');
   const address = server.address(); assert.ok(address && typeof address !== 'string'); const base = `http://127.0.0.1:${address.port}/v1`;
   async function request(path: string, method = 'GET', body?: unknown, token = tokens[0]!) {
     const res = await fetch(base + path, { method, headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
@@ -51,9 +51,18 @@ test('queued Builder chat isolates tenants, fences workers, meters attempts and 
     assert.equal((await request('/admin/scenarios', 'POST', { ...scenario, id: scenarioId })).status, 201);
     assert.equal((await request(`/admin/scenarios/${scenarioId}/releases`, 'POST', { expectedRevision: 1 })).status, 201);
     assert.equal((await request(collection, 'POST', { id: sessions[0], language: 'fr' })).status, 422);
-    const create = { id: sessions[0], language: 'fr', consentToOpenAI: true };
+    const create = { id: sessions[0], language: 'fr', consentToOpenAI: true, consentToMcp: true };
     assert.equal((await request(collection, 'POST', create)).status, 201);
     assert.equal((await request(collection, 'POST', create)).status, 200);
+    assert.equal((await request(collection, 'POST', { ...create, consentToMcp: false })).status, 409);
+    assert.equal((await request(path)).body.consentToMcp, true);
+    const noMcp = await request(collection, 'POST', { id: randomUUID(), language: 'fr', consentToOpenAI: true });
+    assert.equal(noMcp.status, 201);
+    assert.equal(noMcp.body.consentToMcp, false);
+    const modelPath = `/tenants/${tenants[0]}/builder/models`;
+    assert.deepEqual((await request(modelPath)).body.data.map((model: { id: string }) => model.id), ['model-fast', 'model-deep']);
+    assert.equal((await request(modelPath, 'GET', undefined, tokens[1])).status, 404);
+    assert.equal((await request(modelPath, 'GET', undefined, tokens[2])).status, 200);
     const disabled = createApp(db).listen(0, '127.0.0.1'); await once(disabled, 'listening');
     try {
       const disabledAddress = disabled.address(); assert.ok(disabledAddress && typeof disabledAddress !== 'string');
@@ -63,11 +72,13 @@ test('queued Builder chat isolates tenants, fences workers, meters attempts and 
     } finally { await new Promise<void>((resolve, reject) => disabled.close(error => error ? reject(error) : resolve())); }
     assert.equal((await request(path, 'GET', undefined, tokens[1])).status, 404);
     assert.equal((await request(path, 'GET', undefined, tokens[2])).status, 200);
-    const first = { id: randomUUID(), expectedRevision: 0, text: 'مرحبا، بغيت نوجد مساعد للمتجر' };
+    const first = { id: randomUUID(), expectedRevision: 0, text: 'مرحبا، بغيت نوجد مساعد للمتجر', model: 'model-fast' };
+    assert.equal((await request(path + '/messages', 'POST', { ...first, model: 'unapproved-model' })).body.error.code, 'MODEL_NOT_ALLOWED');
     assert.equal((await request(path + '/messages', 'POST', first, tokens[2])).status, 403);
     assert.equal((await request(path + '/messages', 'POST', first)).status, 202);
     assert.equal((await request(path + '/messages', 'POST', first)).status, 200);
     assert.equal((await request(path + '/messages', 'POST', { ...first, text: 'changed' })).status, 409);
+    assert.equal((await request(path + '/messages', 'POST', { ...first, model: 'model-deep' })).status, 409);
 
     // A different tenant's stored text must not appear in the inference context.
     const other = `/tenants/${tenants[1]}/builder/sessions`;
@@ -77,7 +88,7 @@ test('queued Builder chat isolates tenants, fences workers, meters attempts and 
     let enter!: () => void; let release!: () => void;
     const entered = new Promise<void>(resolve => { enter = resolve; }); const held = new Promise<void>(resolve => { release = resolve; });
     let calls = 0;
-    const provider = { async infer(input: BuilderAiInput) { calls++; assert.equal(input.message, first.text); enter(); await held; return result(input, true); } };
+    const provider = { async infer(input: BuilderAiInput) { calls++; assert.equal(input.model, 'model-fast'); assert.equal(input.consentToMcp, true); assert.equal(input.message, first.text); enter(); await held; return result(input, true); } };
     const processing = processBuilderTurn(worker, provider);
     await Promise.race([entered, processing.then(() => { throw new Error('Worker finished before inference.'); })]);
     assert.equal(await processBuilderTurn(worker, provider), false);
@@ -86,9 +97,9 @@ test('queued Builder chat isolates tenants, fences workers, meters attempts and 
     assert.equal((await request(path)).body.turns[0].result.status, 'NEEDS_DETAILS');
     assert.equal((await request(path + '/messages', 'POST', first)).status, 200);
     assert.equal(await processBuilderTurn(worker, provider), false);
-    const second = { id: randomUUID(), expectedRevision: 1, text: 'Trier les messages' };
+    const second = { id: randomUUID(), expectedRevision: 1, text: 'Trier les messages', model: 'model-deep' };
     assert.equal((await request(path + '/messages', 'POST', second)).status, 202);
-    await processBuilderTurn(worker, { async infer(input) { assert.equal(input.history.length, 1); assert.equal(input.history[0]!.message, first.text); return result(input); } });
+    await processBuilderTurn(worker, { async infer(input) { assert.equal(input.model, 'model-deep'); assert.equal(input.history.length, 1); assert.equal(input.history[0]!.message, first.text); return result(input); } });
     const ready = (await request(path)).body.turns[1];
     assert.equal(ready.result.status, 'READY'); assert.equal(ready.usage.totalTokens, 15);
     assert.equal((await request(`/tenants/${tenants[0]}/drafts`)).body.data.length, 0);
@@ -117,7 +128,7 @@ test('queued Builder chat isolates tenants, fences workers, meters attempts and 
     assert.equal((await request(path)).body.revision, 5);
     const unsupportedId = randomUUID();
     await request(`${other}/${sessions[1]}/messages`, 'POST', { id: unsupportedId, expectedRevision: 1, text: 'unsupported tool request' }, tokens[1]);
-    await processBuilderTurn(worker, { async infer(input) { const response = result(input); return { ...response, extraction: {
+    await processBuilderTurn(worker, { async infer(input) { assert.equal(input.consentToMcp, false); const response = result(input); return { ...response, extraction: {
       ...response.extraction as object, selection: null, parameters: [], questions: [], gaps: ['No released capability supports this tool.'],
     } }; } });
     assert.ok((await request('/admin/builder-chat-gaps')).body.data.some((row: { id: string }) => row.id === unsupportedId));

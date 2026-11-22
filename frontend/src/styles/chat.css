@@ -359,8 +359,8 @@
   border-radius: 3px;
   display: grid;
   place-items: center;
-  background: #d6d3d1;
-  color: #1c1917;
+  background: #d0d0d0;
+  color: #111111;
   font-size: 8px;
   font-weight: 700;
   line-height: 1;
@@ -490,7 +490,7 @@
 }
 .ask-option.selected {
   background: var(--surface-2);
-  border-color: #57534e;
+  border-color: #777777;
   color: var(--text-1);
 }
 .ask-option:disabled {
@@ -502,7 +502,7 @@
   flex: none;
   margin-top: 1px;
   border-radius: 999px;
-  border: 1px solid #57534e;
+  border: 1px solid #777777;
   position: relative;
 }
 .ask-option.selected .ask-radio {

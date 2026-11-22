@@ -30,6 +30,8 @@ export default defineConfig({
         GOOGLE_CONNECTIONS_ENABLED: "false",
         SHEETS_DELIVERY_ENABLED: "false",
         BUILDER_AI_ENABLED: "false",
+        BUILDER_AI_MODEL: "gpt-4.1-mini",
+        BUILDER_AI_MODELS: "gpt-4.1-mini,gpt-4.1",
       },
       reuseExistingServer: false,
     },
