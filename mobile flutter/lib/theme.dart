@@ -1,20 +1,20 @@
 import 'package:flutter/material.dart';
 import 'account/workspace_scope.dart';
 
-/// Tokens derived from assets/styles-*.css (dark theme, Tailwind "stone" oklch values).
+/// Shared neutral workspace tokens from frontend/src/styles/tokens.css.
 class SA {
-  static const bg = Color(0xFF0C0A09); // --background 14.7%
-  static const sidebar = Color(0xFF1C1917); // --sidebar 21.6%
-  static const card = Color(0xFF292524); // --accent/--secondary 26.8%
-  static const fg = Color(0xFFF5F5F4); // frontend --text-1
-  static const muted = Color(0xFFA8A29E); // --muted-foreground 70.9%
-  static const border = Color(0x1AFFFFFF); // white 10%
-  static const primary = Color(0xFFE7E5E4); // --primary 92.3%
+  static const bg = Color(0xFF000000); // --background 14.7%
+  static const sidebar = Color(0xFF090909); // --sidebar 21.6%
+  static const card = Color(0xFF1B1B1B); // --accent/--secondary 26.8%
+  static const fg = Color(0xFFF5F5F5); // frontend --text-1
+  static const muted = Color(0xFFA0A0A0); // --muted-foreground 70.9%
+  static const border = Color(0x12FFFFFF); // white 10%
+  static const primary = Color(0xFFEEEEEE); // --primary 92.3%
   static const red = Color(0xFFF87171);
   static const green = Color(0xFF4ADE80);
   static const amber = Color(0xFFFBBF24);
-  static const blue = Color(0xFF38BDF8);
-  static const pink = Color(0xFFEC4899);
+  static const blue = Color(0xFF60A5FA);
+  static const pink = Color(0xFFF0ABFC);
   static const radius = 10.0; // --radius .625rem
   static const fontSans = 'Inter';
   static const fontMono = 'IBMPlexMono';
@@ -211,8 +211,18 @@ class NavItem {
 
 const workspaceNav = [
   NavItem('Home', '/', Icons.grid_view_rounded),
+  NavItem('AI chat', '/chat', Icons.auto_awesome_outlined),
+  NavItem('Inbox', '/inbox', Icons.inbox_outlined),
   NavItem('Orders', '/board', Icons.view_kanban_outlined),
   NavItem('Business profile', '/settings', Icons.settings_outlined),
+  NavItem('Connections', '/connections', Icons.link),
+  NavItem('Builder', '/builder', Icons.account_tree_outlined),
+  NavItem('WhatsApp', '/whatsapp', Icons.chat_outlined),
+  NavItem('Agents', '/agents', Icons.people_outline),
+  NavItem('Docs', '/docs', Icons.description_outlined),
+  NavItem('Company Brain', '/brain', Icons.psychology_outlined),
+  NavItem('Workflows', '/workflows', Icons.account_tree_outlined),
+  NavItem('Canvas', '/canvas', Icons.dashboard_customize_outlined),
 ];
 
 class AppDrawer extends StatelessWidget {
@@ -262,7 +272,8 @@ class AppDrawer extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 16, 16, 12),
             child: Row(children: [
-              const Icon(Icons.folder_open, size: 18, color: SA.muted),
+              Image.asset('assets/brand/logo-mark-light.png',
+                  width: 28, height: 28, semanticLabel: 'SuperAgent'),
               const SizedBox(width: 10),
               Expanded(
                   child: Text(

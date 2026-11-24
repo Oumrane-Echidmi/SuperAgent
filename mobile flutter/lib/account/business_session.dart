@@ -128,19 +128,30 @@ class BusinessSession extends ChangeNotifier {
     return 'tenants/$_tenantId/profile';
   }
 
+  Future<Map<String, dynamic>> loadScenarios() => _authorized('scenarios');
+
   Future<Map<String, dynamic>> loadProfile() =>
       _run(() => _authorized(_profilePath));
 
   /// Scopes every workspace operation to the currently selected membership.
   Future<Map<String, dynamic>> request(String resource,
-          {String method = 'GET',
-          Map<String, dynamic>? body,
-          Map<String, String>? query}) =>
-      _run(() {
-        if (tenant == null) throw StateError('Select a business first.');
-        return _authorized('tenants/$_tenantId/$resource',
-            method: method, body: body, query: query);
-      });
+      {String method = 'GET',
+      Map<String, dynamic>? body,
+      Map<String, String>? query}) async {
+    if (tenant == null) throw StateError('Select a business first.');
+    final selectedTenant = _tenantId;
+    Future<Map<String, dynamic>> action() async {
+      final result = await _authorized('tenants/$selectedTenant/$resource',
+          method: method, body: body, query: query);
+      if (_tenantId != selectedTenant) {
+        throw StateError('Your business changed. Reload this screen.');
+      }
+      return result;
+    }
+
+    // Independent panels can read concurrently; writes retain the existing lock.
+    return method == 'GET' ? action() : _run(action);
+  }
 
   /// One intent and its UUIDs must be retained by the form across uncertain retries.
   Future<Map<String, dynamic>> createOrder(Map<String, dynamic> intent) =>

@@ -53,6 +53,18 @@
     For more details:
     * https://docs.flutter.dev/platform-integration/web/initialization
   -->
-  <script src="flutter_bootstrap.js" async></script>
+  <script>
+    if (window.location.pathname === '/google/callback' && window.opener) {
+      window.opener.postMessage({'flutter-web-auth-2': window.location.href}, window.location.origin);
+      window.history.replaceState(null, '', '/google/callback');
+      document.body.append('Google authorization completed. You can close this window.');
+      window.close();
+    } else {
+      const bootstrap = document.createElement('script');
+      bootstrap.src = 'flutter_bootstrap.js';
+      bootstrap.async = true;
+      document.body.append(bootstrap);
+    }
+  </script>
 </body>
 </html>

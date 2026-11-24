@@ -155,17 +155,29 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('Menu'));
     await tester.pumpAndSettle();
-    for (final label in ['Home', 'Orders', 'Business profile']) {
-      expect(find.text(label), findsWidgets);
-    }
     for (final label in [
-      'Chat',
+      'Home',
+      'AI chat',
       'Inbox',
+      'Orders',
+      'Business profile',
+      'Connections',
+      'Builder',
+      'WhatsApp',
       'Agents',
       'Docs',
       'Company Brain',
       'Workflows',
-      'Canvas',
+      'Canvas'
+    ]) {
+      await tester.scrollUntilVisible(
+          find.descendant(of: find.byType(Drawer), matching: find.text(label)),
+          150,
+          scrollable: find.byType(Scrollable).last);
+      expect(find.text(label), findsWidgets);
+    }
+    for (final label in [
+      'Chat',
       'Labs',
       'Example Home',
       'Example Board',
@@ -173,13 +185,16 @@ void main() {
     ]) {
       expect(find.text(label), findsNothing);
     }
+    await tester.scrollUntilVisible(
+        find.descendant(of: find.byType(Drawer), matching: find.text('Home')),
+        -250,
+        scrollable: find.byType(Scrollable).last);
     await tester.tap(find.text('Home').last);
     await tester.pumpAndSettle();
     final context = tester.element(find.text('Today at a glance'));
     Navigator.of(context).pushNamed('/preview/home');
     await tester.pumpAndSettle();
-    expect(find.text('Today at a glance'), findsOneWidget);
-    expect(find.textContaining('Example screen'), findsNothing);
+    expect(find.textContaining('Example screen'), findsOneWidget);
     expect(
         fixture.calls
             .any((call) => call == 'GET /v1/tenants/shop-1/dashboard/outcomes'),
